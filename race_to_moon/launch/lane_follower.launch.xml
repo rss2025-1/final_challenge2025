@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Lane number parameter (1-6) -->
+  <arg name="lane_number" default="3" description="Assigned lane number (1-6)"/>
+  <arg name="max_speed" default="3.0" description="Maximum speed in m/s (up to 4.0)"/>
+  <arg name="steering_gain" default="0.6" description="Steering gain for lane following"/>
+  <arg name="lookahead_factor" default="0.8" description="Lookahead distance factor"/>
+  
+  <!-- Lane follower node -->
+  <node pkg="race_to_moon" exec="lane_follower.py" name="lane_follower" output="screen">
+    <param name="lane_number" value="$(var lane_number)"/>
+    <param name="max_speed" value="$(var max_speed)"/>
+    <param name="steering_gain" value="$(var steering_gain)"/>
+    <param name="lookahead_factor" value="$(var lookahead_factor)"/>
+  </node>
+</launch>
