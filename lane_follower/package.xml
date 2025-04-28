@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>race_to_moon</name>
-  <version>0.0.1</version>
-  <description>Race to the Moon lane following package</description>
-  <maintainer email="racecar@mit.edu">racecar</maintainer>
+  <name>lane_follower</name>
+  <version>0.0.0</version>
+  <description>Lane follower implementation for the Race to the Moon challenge</description>
+  <maintainer email="shrika@mit.edu">racecar</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
@@ -14,6 +14,8 @@
   <depend>ackermann_msgs</depend>
   <depend>std_msgs</depend>
   <depend>cv_bridge</depend>
+  <depend>numpy</depend>
+  <depend>opencv2</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

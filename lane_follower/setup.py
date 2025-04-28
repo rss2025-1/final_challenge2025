@@ -1,29 +1,26 @@
-from setuptools import setup
-import os
-from glob import glob
+from setuptools import find_packages, setup
 
-package_name = 'race_to_moon'
+package_name = 'lane_follower'
 
 setup(
     name=package_name,
-    version='0.0.1',
-    packages=[package_name],
+    version='0.0.0',
+    packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.xml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='racecar',
-    maintainer_email='racecar@mit.edu',
-    description='Race to the Moon lane following package',
+    maintainer_email='shrika@mit.edu',
+    description='Lane follower implementation for the Race to the Moon challenge',
     license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'lane_follower = race_to_moon.lane_follower:main',
+            'lane_follower = lane_follower.lane_follower:main',
         ],
     },
 )
