@@ -33,17 +33,21 @@ class StateMachine(Node):
 
     def banana_callback(self, msg: Bool):
         self.banana_detected = msg.data
-        self.get_logger().info(f"Banana detected: {msg.data}")
+        if msg.data:
+            self.get_logger().info(f"Banana detected: {msg.data}")
 
     def person_callback(self, msg: Bool): #not necessary if using safety controller
         self.person_detected = msg.data
-        self.get_logger().info(f"Person detected: {msg.data}")
+        if msg.data:
+            self.get_logger().info(f"Person detected: {msg.data}")
     def traffic_light_callback(self, msg: Bool):
         self.red_light_detected = msg.data
-        self.get_logger().info(f"Red Light detected: {msg.data}")
+        if msg.data:
+            self.get_logger().info(f"Red Light detected: {msg.data}")
     def path_planned_callback(self, msg: Bool):
         self.red_light_detected = msg.data
-        self.get_logger().info(f"Path Planning has Finished: {msg.data}")
+        if msg.data:
+            self.get_logger().info(f"Path Planning has Finished: {msg.data}")
 
 
     def run_state_machine(self):

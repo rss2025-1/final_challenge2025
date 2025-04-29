@@ -58,7 +58,7 @@ def image_print(img):
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
 
-def cd_color_segmentation(img, template = None, merge_bb = False):
+def cd_color_segmentation(img):
 	"""
 	Implement the cone detection using color segmentation algorithm
 	Input:
@@ -73,44 +73,44 @@ def cd_color_segmentation(img, template = None, merge_bb = False):
 	bounding_box = ((0,0),(0,0))
 	hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-	lower_hue = 1  # Lower HSV threshold
-	upper_hue = 30 # Upper HSV threshold
-
+	lower_hue, upper_hue = 0,13  
+	lower_brightness, upper_brightness = 130, 255 
 	
+	#We need to dark reds (nonsaturaed) and bright reds (saturated) due to glare effect
+	lower_bound1 = np.array([lower_hue, 200, lower_brightness], dtype=np.uint8) 
+	upper_bound1 = np.array([upper_hue, 225, upper_brightness], dtype=np.uint8)
+	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
 
+	lower_bound2 = np.array([lower_hue, 0, lower_brightness], dtype=np.uint8)
+	upper_bound2 = np.array([upper_hue, 10, upper_brightness], dtype=np.uint8)
+	mask2 = cv2.inRange(hsv_image, lower_bound2, upper_bound2)
 
-	lower_bound = np.array([lower_hue, 200, 150],  dtype=np.uint8)  # Lower HSV threshold 
-	upper_bound = np.array([upper_hue, 255, 255],  dtype=np.uint8)  # Upper HSV threshold
-	
-	
-	mask = cv2.inRange(hsv_image, lower_bound, upper_bound) 
-	bounding_boxes = []
-	areas = []
+# Combine both masks
+	mask = cv2.bitwise_or(mask1, mask2)
+	biggest_bounding_box = bounding_box
+	biggest_area = 0
 	contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	for contour in contours:
-		if 5 <cv2.contourArea(contour) < 50:  # Minimum contour area to avoid noise
+		if 250 <cv2.contourArea(contour) < 750:  # if we see a bounding box of this size we probably want to stop
 			x, y, w, h = cv2.boundingRect(contour)
 			bounding_box = ( (x, y), (x + w, y + h))
-			return bounding_box
+			if w*h > biggest_area:
+				biggest_area = w * h
+				biggest_bounding_box = bounding_box
+			
 
-
-	if bounding_box == ((0,0),(0,0)):
-		return bounding_box
-	return bounding_boxes[np.argmax(areas)]#largest_bbox
+	if biggest_area == 0:
+		return ((0,0),(0,0))
+	return biggest_bounding_box
 
 if __name__ == "__main__":
-	# cone_template = "test_images_cone/cone_template.png"
-	# template = cv2.imread(cone_template)
-	# for i in range(1,20):
-	# 	image_path = "test_images_cone/test" +str(i) + ".jpg"
-
-	# 	image = cv2.imread(image_path)
-	# 	print(cd_color_segmentation(np.array(image), template = None, line = False))
-	# for i in range(1,5):
-	# 	image_path = "test_images_cone_real/test" +str(i) + ".png"
-
-	# 	image = cv2.imread(image_path)
-	# 	cd_color_segmentation(np.array(image))
-	image_path = "test_images_line/line1.png"
+	image_path = "test_images/light1.png"
 	image = cv2.imread(image_path)
-	cd_color_segmentation(np.array(image), line = False)
+	bounding_box = cd_color_segmentation(np.array(image))
+	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
+	image_print(np.array(image))
+	image_path = "test_images/light2.png"
+	image = cv2.imread(image_path)
+	bounding_box = cd_color_segmentation(np.array(image))
+	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
+	image_print(np.array(image))
