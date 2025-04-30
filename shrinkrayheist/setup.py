@@ -19,10 +19,10 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [ "state_machine = heist.state_machine:main",
-                             "traffic_light_detector = heist.traffic_light_detector:main",
-                             "person_detector = heist.person_detector:main",
-                             "banana_detector = heist.banana_detector:main"
+        'console_scripts': [ "state_machine = shrinkrayheist.state_machine:main",
+                             "traffic_light_detector = shrinkrayheist.traffic_light_detector:main",
+                             "person_detector = shrinkrayheist.person_detector:main",
+                             "banana_detector = shrinkrayheist.banana_detector:main"
         ],
     },
 )
