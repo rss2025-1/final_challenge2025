@@ -6,16 +6,13 @@ import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import Point 
-from vs_msgs.msg import ConeLocationPixel
 from models.detector import Detector #this is YOLO
 from nav_msgs.msg import Odometry
 
 class BananaDetector(Node):
     def __init__(self):
         super().__init__("banana_detector")
-        #NOTE: 1. ConeLocationPixel is a message that already repepesnt a pixel (u,v), but you can just create ur own message called BananaLocationPixel if you want
-        #NOTE: 2. Create yaml file for all the topics so we don't name something wrong by accident
+
         self.banana_state_pub = self.create_publisher(Bool, "/banana_detected", 10)  
         self.debug_pub = self.create_publisher(Image, "/banana_debug_img", 10)
         
