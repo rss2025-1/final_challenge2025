@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import glob
+import os
 
 package_name = 'shrinkrayheist'
 
@@ -10,6 +12,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/shrinkrayheist/launch', glob.glob(os.path.join('launch', '*launch.*')))
+
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -22,7 +26,8 @@ setup(
         'console_scripts': [ "state_machine = shrinkrayheist.state_machine:main",
                              "traffic_light_detector = shrinkrayheist.traffic_light_detector:main",
                              "person_detector = shrinkrayheist.person_detector:main",
-                             "banana_detector = shrinkrayheist.banana_detector:main"
+                             "banana_detector = shrinkrayheist.banana_detector:main",
+                             "motion_controller = shrinkrayheist.motion_controller:main",
         ],
     },
 )

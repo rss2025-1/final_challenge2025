@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Pose
 from std_msgs.msg import Header
 
-class AutonomousReplanner(Node):
+class MotionController(Node):
     def __init__(self):
-        super().__init__('autonomous_replanner')
+        super().__init__('motion_controller')
 
         # Publishers to path planning's topics
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
@@ -77,7 +79,7 @@ class AutonomousReplanner(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = AutonomousReplanner()
+    node = MotionController()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
