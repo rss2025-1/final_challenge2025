@@ -22,13 +22,18 @@ class LaneFollower(Node):
         # Parameters
         self.declare_parameter("lane_number", 3)
         self.declare_parameter("max_speed", 4.0)  # m/s
-        self.declare_parameter("steering_gain", 0.6)
-        self.declare_parameter("lookahead_factor", 0.8)  # Adjusts the effective lookahead distance
+        self.declare_parameter("steering_p_gain", 0.5)  # Proportional gain
+        self.declare_parameter("steering_d_gain", 0.3)  # Derivative gain
 
         self.lane_number = self.get_parameter("lane_number").value
         self.max_speed = self.get_parameter("max_speed").value
-        self.steering_gain = self.get_parameter("steering_gain").value
-        self.lookahead_factor = self.get_parameter("lookahead_factor").value
+        self.steering_p_gain = self.get_parameter("steering_p_gain").value
+        self.steering_d_gain = self.get_parameter("steering_d_gain").value
+
+        
+        # PD controller state
+        self.prev_deviation = 0.0
+        self.prev_time = None
 
         # Publishers and subscribers
         self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/navigation", 10)
@@ -47,6 +52,7 @@ class LaneFollower(Node):
         self.is_outside_lane = False
         self.lane_departure_count = 0
         self.long_breach_count = 0
+        self.long_breach_reported = False  # Track if a long breach has been reported
 
         # Control parameters
         self.min_speed = 1.0  # Minimum speed in m/s
@@ -232,7 +238,7 @@ class LaneFollower(Node):
 
     def calculate_steering_angle(self, center_x, car_position_x, img_width):
         """
-        Calculate the steering angle based on the deviation from the lane center.
+        Calculate the steering angle using PD control based on the deviation from the lane center.
 
         Args:
             center_x: X-coordinate of the lane center
@@ -242,12 +248,27 @@ class LaneFollower(Node):
         Returns:
             steering_angle: Calculated steering angle
         """
-        # Calculate deviation from lane center
-        deviation = center_x - car_position_x
-
-        # Normalize by image width and apply steering gain
-        steering_angle = self.steering_gain * deviation / (img_width / 2)
-
+        # Calculate deviation from lane center (normalized by image width)
+        deviation = (center_x - car_position_x) / (img_width / 2)
+        
+        # Get current time for derivative calculation
+        current_time = self.get_clock().now()
+        
+        # Calculate derivative term (rate of change of error)
+        derivative = 0.0
+        if self.prev_time is not None:
+            # Calculate time delta in seconds
+            dt = (current_time - self.prev_time).nanoseconds / 1e9
+            if dt > 0:
+                derivative = (deviation - self.prev_deviation) / dt
+        
+        # Store current values for next iteration
+        self.prev_deviation = deviation
+        self.prev_time = current_time
+        
+        # PD control: proportional term + derivative term
+        steering_angle = self.steering_p_gain * deviation + self.steering_d_gain * derivative
+        
         # Clip to valid steering range
         return np.clip(steering_angle, -0.4, 0.4)
 
@@ -356,17 +377,17 @@ class LaneFollower(Node):
             drive_cmd.drive.speed = speed
             self.drive_pub.publish(drive_cmd)
 
-            # Log control values periodically
-            if hasattr(self, 'log_counter'):
-                self.log_counter += 1
-                if self.log_counter % 20 == 0:  # Log every 20 frames
-                    self.get_logger().info(
-                        f"Speed: {speed:.2f} m/s, Steering: {steering_angle:.2f}, "
-                        f"Lane departures: {self.lane_departure_count}, "
-                        f"Long breaches: {self.long_breach_count}"
-                    )
-            else:
+            # Log control values periodically (every 20 frames)
+            if not hasattr(self, 'log_counter'):
                 self.log_counter = 0
+                
+            self.log_counter += 1
+            if self.log_counter % 20 == 0:
+                self.get_logger().info(
+                    f"Speed: {speed:.2f} m/s, Steering: {steering_angle:.2f}, "
+                    f"Lane departures: {self.lane_departure_count}, "
+                    f"Long breaches: {self.long_breach_count}"
+                )
 
             # Create debug image
             debug_img = image.copy()
@@ -385,6 +406,23 @@ class LaneFollower(Node):
             # Draw lane center and car position
             cv2.circle(debug_img, (center_x, bottom_y), 10, (0, 255, 0), -1)
             cv2.circle(debug_img, (car_position_x, bottom_y), 10, (255, 255, 0), -1)
+            
+            # Draw midpoint calculation line and point
+            cv2.line(debug_img, (left_x, bottom_y), (right_x, bottom_y), (255, 0, 255), 2)  # Purple horizontal line
+            
+            # Draw the midpoint as a distinct marker (purple diamond)
+            midpoint = (left_x + right_x) // 2
+            diamond_size = 8
+            diamond_points = np.array([
+                [midpoint, bottom_y - diamond_size],  # top
+                [midpoint + diamond_size, bottom_y],  # right
+                [midpoint, bottom_y + diamond_size],  # bottom
+                [midpoint - diamond_size, bottom_y]   # left
+            ], np.int32)
+            cv2.fillPoly(debug_img, [diamond_points], (255, 0, 255))  # Purple diamond
+            
+            cv2.putText(debug_img, f"Mid: {midpoint}", (midpoint - 40, bottom_y - 20), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
 
             # Draw lane boundaries
             cv2.line(debug_img, (left_x, bottom_y), (left_x, bottom_y - 50), (0, 255, 255), 3)
