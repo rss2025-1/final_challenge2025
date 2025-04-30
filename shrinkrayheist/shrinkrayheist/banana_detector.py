@@ -76,11 +76,10 @@ class BananaDetector(Node):
             self.get_logger().info(f"Largest banana size detected: {largest_banana_size_detected}")
 
         # Publish debug image (with boxes)
-        if predictions:
-            pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
-            debug_image = np.array(pil_debug_image)
-            debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
-        
+        pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
+        debug_image = np.array(pil_debug_image)
+        debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
+
         debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
         self.debug_pub.publish(debug_msg)
 
