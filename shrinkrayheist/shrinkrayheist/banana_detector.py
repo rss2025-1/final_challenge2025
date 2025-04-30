@@ -7,7 +7,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 from .model.detector import Detector #this is YOLO
-from nav_msgs.msg import Odometry
+from ackermann_msgs.msg import AckermannDriveStamped
 
 class BananaDetector(Node):
     def __init__(self):
@@ -15,13 +15,18 @@ class BananaDetector(Node):
 
         self.banana_state_pub = self.create_publisher(Bool, "/banana_detected", 10)  
         self.debug_pub = self.create_publisher(Image, "/banana_debug_img", 10)
+        self.safety_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 1)
         
-        self.odom_sub = self.create_subscription(Odometry,"/pf/pose/odom", self.pose_callback, 10)
         self.image_sub = self.create_subscription(Image, "/zed/zed_node/rgb/image_rect_color", self.image_callback, 5)
 
         self.bridge = CvBridge() # Converts between ROS images and OpenCV Images
         self.detector = Detector()  # Load YOLO model
         self.detector.set_threshold(0.5)  # Optional: you can adjust threshold
+
+        # State flags
+        self._detection_enabled = True
+        self._phase1_timer = None
+        self._phase2_timer = None
 
         self.get_logger().info("Banana Detector Initialized")
 
@@ -48,6 +53,15 @@ class BananaDetector(Node):
                 banana_detected = True
         return banana_detected, closest_banana, largest_banana_size_detected
 
+    def publish_debug_image(self, debug_image, predictions):
+        # Publish debug image (with boxes)
+        pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
+        debug_image = np.array(pil_debug_image)
+        debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
+
+        debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
+        self.debug_pub.publish(debug_msg)
+
     def image_callback(self, image_msg):
         """
         Uses YOLO to detect banana. If detected, publish location and detection state.
@@ -63,38 +77,70 @@ class BananaDetector(Node):
         predictions = results["predictions"]
         debug_image = results["original_image"]
 
+        if not self._detection_enabled:
+            # Pause detection after stopping for banana, but still publishes debugging image
+            msg = Bool(data=False)
+            self.banana_state_pub.publish(msg)
+            self.publish_debug_image(debug_image, predictions)
+            return
+
         # Find the closest banana
         banana_detected, closest_banana, largest_banana_size_detected = self.find_closest_banana(predictions)
 
         # Publish the banana detection state
-        banana_msg = Bool()
-        banana_msg.data = banana_detected
+        banana_msg = Bool(data = banana_detected)
         self.banana_state_pub.publish(banana_msg)
 
         if banana_detected and closest_banana is not None:
             self.get_logger().info(f"Closest banana detected at: {closest_banana}")
             self.get_logger().info(f"Largest banana size detected: {largest_banana_size_detected}")
 
+        # Stop when the banana is found
+        if banana_detected:
+            self.get_logger().info(f"Banana! stopping car and pausing detection.")
+            self._trigger_stop_and_pause()
+
         # Publish debug image (with boxes)
-        if predictions:
-            pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
-            debug_image = np.array(pil_debug_image)
-            debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
-        
-        debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
-        self.debug_pub.publish(debug_msg)
+        self.publish_debug_image(debug_image, predictions)
 
-    def pose_callback(self, msg):
-        """
-        Currently unused. Could be used to implement banana_collected() logic.
-        """
-        pass
+    def _trigger_stop_and_pause(self):
+        # 1) Publish zero‐speed Ackermann to safety topic
+        stop_msg = AckermannDriveStamped()
+        stop_msg.drive.speed = 0.0
+        stop_msg.drive.steering_angle = 0.0
+        self.safety_pub.publish(stop_msg)
 
-    def banana_collected(self):
-        """
-        TODO: Update this function based on robot pose and banana pixel position
-        """
-        pass
+        # 2) Schedule Phase 1 timer: after 5 s, enter pause phase
+        if self._phase1_timer is None:
+            self._phase1_timer = self.create_timer(
+                5.0,
+                self._enter_pause_phase
+            )
+
+    def _enter_pause_phase(self):
+        # Disable further detection
+        self._detection_enabled = False
+
+        # Cancel Phase 1 timer so it only fires once
+        if self._phase1_timer:
+            self._phase1_timer.cancel()
+            self._phase1_timer = None
+
+        # Schedule Phase 2 timer: after 10 s of pause, resume detection
+        if self._phase2_timer is None:
+            self._phase2_timer = self.create_timer(
+                10.0,
+                self._resume_detection
+            )
+
+    def _resume_detection(self):
+        # Re-enable detection
+        self._detection_enabled = True
+
+        # Cancel Phase 2 timer
+        if self._phase2_timer:
+            self._phase2_timer.cancel()
+            self._phase2_timer = None
 
 def main(args=None):
     rclpy.init(args=args)
