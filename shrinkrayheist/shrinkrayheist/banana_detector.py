@@ -6,7 +6,7 @@ import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
-from models.detector import Detector #this is YOLO
+from .model.detector import Detector #this is YOLO
 from nav_msgs.msg import Odometry
 
 class BananaDetector(Node):
