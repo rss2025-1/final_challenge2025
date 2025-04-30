@@ -3,16 +3,15 @@
     <node pkg="shrinkrayheist" exec="motion_controller" name="motion_controller" output="screen">
     </node>
 
-    <!-- Launch the particle filter node -->
-    <node pkg="localization" exec="particle_filter" name="particle_filter" output="screen">
-        <param from="$(find-pkg-share localization)/params.yaml"/>
-    </node>
-
     <!-- Launch the path planning node -->
     <node pkg="path_planning" exec="trajectory_planner" name="trajectory_planner" output="screen">
         <param from="$(find-pkg-share path_planning)/config/sim/pf_sim_config.yaml"/>
     </node>
     <node pkg="path_planning" exec="trajectory_follower" name="trajectory_follower">
         <param from="$(find-pkg-share path_planning)/config/sim/pf_sim_config.yaml"/>
+    </node>
+    <!-- Launch the particle filter node -->
+    <node pkg="localization" exec="particle_filter" name="particle_filter" output="screen">
+        <param from="$(find-pkg-share localization)/params.yaml"/>
     </node>
 </launch>
