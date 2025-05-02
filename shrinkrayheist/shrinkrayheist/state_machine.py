@@ -38,9 +38,10 @@ class StateMachine(Node):
 
     def person_callback(self, msg: Bool): #not necessary if using safety controller
         self.person_detected = msg.data
+        drive_msg = AckermannDriveStamped()
         if msg.data:
             self.get_logger().info(f"Person detected: {msg.data}")
-            drive_msg = AckermannDriveStamped()
+            
             drive_msg.drive.speed = 0
             self.drive_pub.publish(drive_msg)
         else:
