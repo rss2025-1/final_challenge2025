@@ -76,7 +76,7 @@ class PersonDetector(Node):
         mask_estop = (np.abs(y_coords) <= self.car_width) & (x_coords <= self.estop_dist)
         close_points_count = np.sum(mask_estop)
 
-        should_estop = (close_points_count >= self.count_threshold)
+        should_estop = bool(close_points_count >= self.count_threshold)
 
         shoe_found = Bool()
         shoe_found.data = should_estop  
