@@ -49,7 +49,7 @@ class PersonDetector(Node):
         
         ranges_satisfied = np.sum(ranges < self.estop_dist) 
 
-        should_estop =  ranges_satisfied >= self.count_threshold
+        should_estop =  bool(ranges_satisfied >= self.count_threshold)
         shoe_found = Bool()
         shoe_found.data = should_estop  
         self.shoe_pub.publish(shoe_found)
