@@ -42,12 +42,12 @@ class StateMachine(Node):
         if msg.data:
             self.get_logger().info(f"Person detected: {msg.data}")
             
-            drive_msg.drive.speed = 0
+            drive_msg.drive.speed = 0.0
             self.drive_pub.publish(drive_msg)
         else:
-            drive_msg.drive.speed = 1
+            drive_msg.drive.speed = 1.0
             self.drive_pub.publish(drive_msg)
-
+ 
     def traffic_light_callback(self, msg: Bool):
         self.red_light_detected = msg.data
         if msg.data:
