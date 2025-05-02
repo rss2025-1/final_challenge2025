@@ -12,33 +12,29 @@ from std_msgs.msg import Bool
 
 class LaneFollower(Node):
     """
-    Lane following node for the Race to the Moon challenge.
-    This node detects lane lines using Hough transform, calculates the lane center,
-    and controls the vehicle to stay within the assigned lane.
+    Lane follower node that implements a simplified computer vision pipeline
+    to detect lane lines and control the vehicle steering.
     """
     def __init__(self):
         super().__init__("lane_follower")
 
         # Parameters
-        self.declare_parameter("lane_number", 3)
         self.declare_parameter("max_speed", 4.0)  # m/s
-        self.declare_parameter("steering_p_gain", 0.5)  # Proportional gain
-        self.declare_parameter("steering_d_gain", 0.3)  # Derivative gain
+        self.declare_parameter("const_steering_angle", 0.036)  # rad - corrects natural drift
+        self.declare_parameter("angle_bound", 0.2)  # rad - max steering angle
+        self.declare_parameter("prev_angle_threshold", 0.1)  # rad - threshold for using prev angle
+        self.declare_parameter("prev_angle_weight", 0.21)  # weight for previous angle in timer callback
 
-        self.lane_number = self.get_parameter("lane_number").value
+        # Get parameters
         self.max_speed = self.get_parameter("max_speed").value
-        self.steering_p_gain = self.get_parameter("steering_p_gain").value
-        self.steering_d_gain = self.get_parameter("steering_d_gain").value
-
-        
-        # PD controller state
-        self.prev_deviation = 0.0
-        self.prev_time = None
+        self.const_steering_angle = self.get_parameter("const_steering_angle").value
+        self.angle_bound = self.get_parameter("angle_bound").value
+        self.prev_angle_threshold = self.get_parameter("prev_angle_threshold").value
+        self.prev_angle_weight = self.get_parameter("prev_angle_weight").value
 
         # Publishers and subscribers
         self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/navigation", 10)
         self.debug_pub = self.create_publisher(Image, "/lane_debug_img", 10)
-        self.lane_departure_pub = self.create_publisher(Bool, "/lane_departure", 10)
 
         self.image_sub = self.create_subscription(
             Image,
@@ -47,33 +43,25 @@ class LaneFollower(Node):
             5
         )
 
-        # State variables
-        self.outside_lane_start_time = None
-        self.is_outside_lane = False
-        self.lane_departure_count = 0
-        self.long_breach_count = 0
-        self.long_breach_reported = False  # Track if a long breach has been reported
+        # Timer for intermediate drive commands (15 Hz)
+        timer_period = 1/15  # seconds
+        self.timer = self.create_timer(timer_period, self.timer_callback)
 
-        # Control parameters
-        self.min_speed = 1.0  # Minimum speed in m/s
-        self.curve_speed_factor = 0.7  # Speed reduction factor for curves
-        self.recovery_speed_factor = 0.6  # Speed reduction factor during recovery
+        # State variables
+        self.prev_angle = self.const_steering_angle
+        self.bridge = CvBridge()
 
         # Image processing parameters
         self.canny_low_threshold = 50
         self.canny_high_threshold = 150
-        self.hough_threshold = 20
-        self.min_line_length = 20
-        self.max_line_gap = 300
+        self.min_line_length = 30  # minimum line length in pixels
+        self.min_slope = 0.2  # minimum absolute slope value
 
-        self.roi_vertices = None
-
-        self.bridge = CvBridge()
-        self.get_logger().info(f"Lane Follower Initialized for Lane {self.lane_number}")
+        self.get_logger().info("Lane Follower Initialized")
 
     def detect_lane_lines(self, img):
         """
-        Detect lane lines using Canny edge detection and Hough transform.
+        Detect lane lines using a simplified computer vision pipeline.
 
         Args:
             img: Input BGR image
@@ -81,221 +69,210 @@ class LaneFollower(Node):
         Returns:
             lines: Detected lines from Hough transform
         """
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-        # white color mask
-        lower_white = np.array([0,0,180])
-        upper_white = np.array([180,60,255])
-        white_mask = cv2.inRange(hsv, lower_white, upper_white)
-        img = cv2.bitwise_and(img, img, mask=white_mask)
+        # Crop image to remove background features
+        height, width = img.shape[:2]
+        crop_height = height // 2
+        img = img[crop_height:, :]
 
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Apply Gaussian blur to reduce noise
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # Apply white color segmentation
+        _, white_mask = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
 
         # Apply Canny edge detection
-        edges = cv2.Canny(blurred, self.canny_low_threshold, self.canny_high_threshold)
-
-        # Focus on the region of interest (bottom portion of the image)
-        mask = np.zeros_like(edges)
-        height, width = edges.shape
-
-        # Define a trapezoid region
-        self.roi_vertices = np.array([
-            [(0, height),
-             (width//4, height//2),
-             (3*width//4, height//2),
-             (width, height)]
-        ], dtype=np.int32)
-
-        cv2.fillPoly(mask, self.roi_vertices, 255)
-        masked_edges = cv2.bitwise_and(edges, mask)
+        edges = cv2.Canny(white_mask, self.canny_low_threshold, self.canny_high_threshold)
 
         # Apply Hough Transform to detect lines
         lines = cv2.HoughLinesP(
-            masked_edges,
+            edges,
             rho=1,
             theta=np.pi/180,
-            threshold=self.hough_threshold,
+            threshold=20,
             minLineLength=self.min_line_length,
-            maxLineGap=self.max_line_gap
+            maxLineGap=10
         )
 
-        return lines, masked_edges
+        return lines, crop_height
 
-    def classify_lane_lines(self, lines, img_width):
+    def find_best_line_pair(self, lines):
         """
-        Classify detected lines as left or right lane boundaries.
+        Find the best pair of non-intersecting lines for lane boundaries.
 
         Args:
             lines: Lines detected by Hough transform
-            img_width: Width of the image
 
         Returns:
-            left_lines: Lines classified as left lane boundaries
-            right_lines: Lines classified as right lane boundaries
+            best_left: Best line for left boundary
+            best_right: Best line for right boundary
         """
+        if lines is None:
+            return None, None
+
         left_lines = []
         right_lines = []
 
-        if lines is None:
-            return left_lines, right_lines
-
+        # Filter and classify lines
         for line in lines:
             x1, y1, x2, y2 = line[0]
-
-            # Calculate slope
-            if x2 - x1 == 0:  # Avoid division by zero
+            if x2 - x1 == 0:  # Skip vertical lines
                 continue
 
             slope = (y2 - y1) / (x2 - x1)
+            length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-            # Filter out horizontal lines
-            if abs(slope) < 0.3:
+            # Filter by length and slope
+            if length < self.min_line_length or abs(slope) < self.min_slope:
                 continue
 
-            # Classify based on slope and position
-            if slope < 0 and x1 < img_width // 2:
+            # Classify as left or right based on slope
+            if slope < 0:
                 left_lines.append(line)
-            elif slope > 0 and x1 > img_width // 2:
+            else:
                 right_lines.append(line)
 
-        return left_lines, right_lines
+        # Handle adversarial cases
+        if not left_lines and not right_lines:
+            return None, None
+        elif not left_lines:
+            # Case 1: Only right lines
+            best_right = max(right_lines, key=lambda x: abs((x[0][3] - x[0][1])/(x[0][2] - x[0][0])))
+            return None, best_right
+        elif not right_lines:
+            # Case 1: Only left lines
+            best_left = max(left_lines, key=lambda x: abs((x[0][3] - x[0][1])/(x[0][2] - x[0][0])))
+            return best_left, None
 
-    def calculate_lane_center(self, left_lines, right_lines, img_shape):
+        # Find best non-intersecting pair
+        best_pair = None
+        min_intersection_y = float('-inf')
+
+        for left in left_lines:
+            for right in right_lines:
+                # Calculate intersection point
+                x1, y1, x2, y2 = left[0]
+                x3, y3, x4, y4 = right[0]
+
+                # Line equations: y = mx + b
+                m1 = (y2 - y1) / (x2 - x1)
+                m2 = (y4 - y3) / (x4 - x3)
+                b1 = y1 - m1 * x1
+                b2 = y3 - m2 * x3
+
+                # Intersection x = (b2-b1)/(m1-m2)
+                if m1 != m2:
+                    x_intersect = (b2 - b1) / (m1 - m2)
+                    y_intersect = m1 * x_intersect + b1
+
+                    if y_intersect > min_intersection_y:
+                        min_intersection_y = y_intersect
+                        best_pair = (left, right)
+
+        if best_pair:
+            return best_pair
+        else:
+            # If no good pairs found, return steepest lines
+            best_left = max(left_lines, key=lambda x: abs((x[0][3] - x[0][1])/(x[0][2] - x[0][0])))
+            best_right = max(right_lines, key=lambda x: abs((x[0][3] - x[0][1])/(x[0][2] - x[0][0])))
+            return best_left, best_right
+
+    def calculate_goal_point(self, best_left, best_right, img_shape, crop_height):
         """
-        Calculate the center of the lane based on detected lane lines.
+        Calculate the goal point based on lane lines.
 
         Args:
-            left_lines: Lines classified as left lane boundaries
-            right_lines: Lines classified as right lane boundaries
+            best_left: Best line for left boundary
+            best_right: Best line for right boundary
             img_shape: Shape of the image
+            crop_height: Height where image was cropped
 
         Returns:
-            center_x: X-coordinate of the lane center
-            bottom_y: Y-coordinate at the bottom of the image
+            goal_x: X-coordinate of the goal point
             left_x: X-coordinate of the left lane boundary
             right_x: X-coordinate of the right lane boundary
         """
-        height, width = img_shape[:2]
+        height, width = img_shape
+        top_y = crop_height  # Top of the cropped image
 
-        # Default values if no lines are detected
+        # Default values at image center
         left_x = width // 4
         right_x = 3 * width // 4
+        goal_x = width // 2
 
-        # Calculate average left line position at the bottom of the image
-        if left_lines:
-            left_points = []
-            for line in left_lines:
-                x1, y1, x2, y2 = line[0]
-                # Extrapolate to bottom of image
-                if y2 != y1:
-                    left_x_at_bottom = int(x1 + (height - y1) * (x2 - x1) / (y2 - y1))
-                    if 0 <= left_x_at_bottom < width:
-                        left_points.append(left_x_at_bottom)
+        # Calculate intersection points with top of cropped image
+        if best_left is not None:
+            x1, y1, x2, y2 = best_left[0]
+            if x2 - x1 != 0:  # Non-vertical line
+                slope = (y2 - y1) / (x2 - x1)
+                intercept = y1 - slope * x1
+                left_x = int((top_y - intercept) / slope)
 
-            if left_points:
-                left_x = int(np.mean(left_points))
+        if best_right is not None:
+            x1, y1, x2, y2 = best_right[0]
+            if x2 - x1 != 0:  # Non-vertical line
+                slope = (y2 - y1) / (x2 - x1)
+                intercept = y1 - slope * x1
+                right_x = int((top_y - intercept) / slope)
 
-        # Calculate average right line position at the bottom of the image
-        if right_lines:
-            right_points = []
-            for line in right_lines:
-                x1, y1, x2, y2 = line[0]
-                # Extrapolate to bottom of image
-                if y2 != y1:
-                    right_x_at_bottom = int(x1 + (height - y1) * (x2 - x1) / (y2 - y1))
-                    if 0 < right_x_at_bottom <= width:
-                        right_points.append(right_x_at_bottom)
+        # Handle adversarial cases
+        if best_left is None and best_right is not None:
+            # Only right line visible - offset left by fixed amount
+            goal_x = right_x - 20
+        elif best_left is not None and best_right is None:
+            # Only left line visible - offset right by fixed amount
+            goal_x = left_x + 20
+        else:
+            # Both lines visible - use midpoint
+            goal_x = (left_x + right_x) // 2
 
-            if right_points:
-                right_x = int(np.mean(right_points))
+        # Ensure goal point is within image bounds
+        goal_x = max(0, min(goal_x, width))
 
-        # Calculate center point
-        center_x = (left_x + right_x) // 2
+        return goal_x, left_x, right_x
 
-        return center_x, height - 1, left_x, right_x
-
-    def detect_lane_departure(self, left_x, right_x, car_position_x):
+    def calculate_steering_angle(self, goal_x, img_width):
         """
-        Detect if the car is outside its assigned lane.
+        Calculate steering angle based on the goal point.
 
         Args:
-            left_x: X-coordinate of the left lane boundary
-            right_x: X-coordinate of the right lane boundary
-            car_position_x: X-coordinate of the car's position
-
-        Returns:
-            is_outside: Boolean indicating if the car is outside the lane
-        """
-        # Check if car is outside lane boundaries
-        if car_position_x < left_x or car_position_x > right_x:
-            return True
-
-        return False
-
-    def calculate_steering_angle(self, center_x, car_position_x, img_width):
-        """
-        Calculate the steering angle using PD control based on the deviation from the lane center.
-
-        Args:
-            center_x: X-coordinate of the lane center
-            car_position_x: X-coordinate of the car's position
+            goal_x: X-coordinate of the goal point
             img_width: Width of the image
 
         Returns:
-            steering_angle: Calculated steering angle
+            steering_angle: Calculated steering angle in radians
         """
-        # Calculate deviation from lane center (normalized by image width)
-        deviation = (center_x - car_position_x) / (img_width / 2)
+        # Calculate dx (difference between goal and image center)
+        dx = goal_x - (img_width // 2)
         
-        # Get current time for derivative calculation
-        current_time = self.get_clock().now()
-        
-        # Calculate derivative term (rate of change of error)
-        derivative = 0.0
-        if self.prev_time is not None:
-            # Calculate time delta in seconds
-            dt = (current_time - self.prev_time).nanoseconds / 1e9
-            if dt > 0:
-                derivative = (deviation - self.prev_deviation) / dt
-        
-        # Store current values for next iteration
-        self.prev_deviation = deviation
-        self.prev_time = current_time
-        
-        # PD control: proportional term + derivative term
-        steering_angle = self.steering_p_gain * deviation + self.steering_d_gain * derivative
-        
-        # Clip to valid steering range
-        return np.clip(steering_angle, -0.4, 0.4)
+        # Use fixed dy (lookahead distance)
+        dy = 160
 
-    def calculate_speed(self, steering_angle, is_outside_lane):
+        # Calculate angle using arctan
+        angle = np.arctan2(dx, dy)
+
+        # Map angle to bounded range and add constant steering correction
+        steering_angle = np.interp(angle, [-np.pi, np.pi], [-self.angle_bound, self.angle_bound])
+        steering_angle += self.const_steering_angle
+
+        return steering_angle
+
+    def timer_callback(self):
         """
-        Calculate the appropriate speed based on steering angle and lane position.
-
-        Args:
-            steering_angle: Current steering angle
-            is_outside_lane: Boolean indicating if the car is outside the lane
-
-        Returns:
-            speed: Calculated speed
+        Timer callback for publishing intermediate drive commands.
         """
-        # Base speed is maximum speed
-        speed = self.max_speed
+        # Calculate steering angle based on previous angle and constant correction
+        if abs(self.prev_angle - self.const_steering_angle) > self.prev_angle_threshold:
+            steering_angle = (self.prev_angle_weight * self.prev_angle + 
+                            (1 - self.prev_angle_weight) * self.const_steering_angle)
+        else:
+            steering_angle = self.const_steering_angle
 
-        # Reduce speed for sharp turns
-        turn_factor = 1.0 - (abs(steering_angle) / 0.4) * (1.0 - self.curve_speed_factor)
-        speed *= turn_factor
-
-        # Reduce speed when outside lane
-        if is_outside_lane:
-            speed *= self.recovery_speed_factor
-
-        # Ensure speed doesn't go below minimum
-        return max(self.min_speed, min(speed, self.max_speed))
+        # Create and publish drive command
+        drive_cmd = AckermannDriveStamped()
+        drive_cmd.header.stamp = self.get_clock().now().to_msg()
+        drive_cmd.drive.steering_angle = steering_angle
+        drive_cmd.drive.speed = self.max_speed
+        self.drive_pub.publish(drive_cmd)
 
     def image_callback(self, image_msg):
         """
@@ -305,8 +282,67 @@ class LaneFollower(Node):
             image_msg: ROS Image message
         """
         try:
-            # Convert ROS image to OpenCV format
+            # Convert ROS Image message to OpenCV image
             image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
+            height, width = image.shape[:2]
+
+            # Detect lane lines
+            lines, crop_height = self.detect_lane_lines(image)
+
+            # Process detected lines if any were found
+            if lines is not None:
+                # Find best pair of lines
+                best_left, best_right = self.find_best_line_pair(lines)
+
+                # Calculate goal point
+                goal_x, left_x, right_x = self.calculate_goal_point(
+                    best_left, best_right, image.shape, crop_height
+                )
+
+                # Calculate steering angle
+                steering_angle = self.calculate_steering_angle(goal_x, width)
+
+                # Update previous angle for timer callback
+                self.prev_angle = steering_angle
+
+                # Create and publish drive command
+                drive_cmd = AckermannDriveStamped()
+                drive_cmd.header.stamp = self.get_clock().now().to_msg()
+                drive_cmd.drive.steering_angle = steering_angle
+                drive_cmd.drive.speed = self.max_speed
+                self.drive_pub.publish(drive_cmd)
+
+                # Create debug visualization
+                debug_img = image.copy()
+
+                # Draw detected lines
+                if best_left is not None:
+                    x1, y1, x2, y2 = best_left[0]
+                    cv2.line(debug_img, (x1, y1 + crop_height), 
+                            (x2, y2 + crop_height), (0, 0, 255), 2)
+
+                if best_right is not None:
+                    x1, y1, x2, y2 = best_right[0]
+                    cv2.line(debug_img, (x1, y1 + crop_height),
+                            (x2, y2 + crop_height), (255, 0, 0), 2)
+
+                # Draw goal point
+                cv2.circle(debug_img, (goal_x, crop_height), 5, (0, 255, 0), -1)
+
+                # Add status text
+                cv2.putText(debug_img, 
+                          f"Steering: {steering_angle:.3f} rad", 
+                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 
+                          0.8, (255, 255, 255), 2)
+
+                # Publish debug image
+                debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
+                self.debug_pub.publish(debug_msg)
+
+        except CvBridgeError as e:
+            self.get_logger().error(f"CV Bridge error: {e}")
+        except Exception as e:
+            self.get_logger().error(f"Error in image_callback: {e}")
             height, width = image.shape[:2]
 
             # Detect lane lines
@@ -454,9 +490,13 @@ class LaneFollower(Node):
 def main(args=None):
     rclpy.init(args=args)
     lane_follower = LaneFollower()
-    rclpy.spin(lane_follower)
-    lane_follower.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(lane_follower)
+    except KeyboardInterrupt:
+        lane_follower.get_logger().info('Keyboard Interrupt (SIGINT)')
+    finally:
+        lane_follower.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
