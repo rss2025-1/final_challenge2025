@@ -7,7 +7,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Point
-from models.detector import Detector #fix import path, Detector in final_challenge_2025/shrinkrayheist/models
+# from model.detector import Detector #fix import path, Detector in final_challenge_2025/shrinkrayheist/models
 class PersonDetector(Node):
     def __init__(self):
         super().__init__("person_detector")
