@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-
+from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped
 
@@ -17,7 +17,7 @@ class StateMachine(Node):
         self.person_sub = self.create_subscription(Bool, '/shoe_detected', self.person_callback, 10)
         self.traffic_light_sub = self.create_subscription(Bool, '/red_light_detected', self.traffic_light_callback, 10)
         self.path_planned = self.create_subscription(Bool, '/path_planned', self.path_planned_callback, 10)
-
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/navigation", 10)
         # Publisher to path planner (example, could be more complex in reality)
         self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
 
@@ -40,6 +40,13 @@ class StateMachine(Node):
         self.person_detected = msg.data
         if msg.data:
             self.get_logger().info(f"Person detected: {msg.data}")
+            drive_msg = AckermannDriveStamped()
+            drive_msg.drive.speed = 0
+            self.drive_pub.publish(drive_msg)
+        else:
+            drive_msg.drive.speed = 1
+            self.drive_pub.publish(drive_msg)
+
     def traffic_light_callback(self, msg: Bool):
         self.red_light_detected = msg.data
         if msg.data:
@@ -55,10 +62,10 @@ class StateMachine(Node):
             # If anything detected or path planning, stop
             if self.person_detected or self.red_light_detected:
                 self.get_logger().info("Switching to STOPPED state!")
-                pass #TODO: set velocity to 0
+
             elif self.banana_detected:
                 self.get_logger().info("Switching to STOPPED state and rerouting path!")
-                pass #TODO: reroute path by re path planning, stop car while path planning from car to banana, and then make it move again, 
+                #TODO: reroute path by re path planning, stop car while path planning from car to banana, and then make it move again, 
   
 
         else:
