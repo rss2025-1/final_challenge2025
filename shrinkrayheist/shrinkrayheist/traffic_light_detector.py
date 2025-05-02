@@ -11,7 +11,7 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import Point #geometry_msgs not in CMake file
 
 # import your color segmentation algorithm; call this function in ros_image_callback!
-from computer_vision.color_segmentation import cd_color_segmentation
+from shrinkrayheist.computer_vision.color_segmentation import cd_color_segmentation
 
 class TrafficLightDetector(Node):
     def __init__(self):
