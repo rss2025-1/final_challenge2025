@@ -56,12 +56,11 @@ class StateMachine(Node):
         self.red_light_detected = msg.data
         if msg.data:
             self.get_logger().info(f"Red Light detected: {msg.data}")
-            
+
     def path_planned_callback(self, msg: Bool):
         self.red_light_detected = msg.data
         if msg.data:
             self.get_logger().info(f"Path Planning has Finished: {msg.data}")
-
 
     def run_state_machine(self):
         if self.banana_detected or self.person_detected or self.red_light_detected or not self.path_planned: #stopped state
