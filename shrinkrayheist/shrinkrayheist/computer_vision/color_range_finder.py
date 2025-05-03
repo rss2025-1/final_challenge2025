@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load and convert image
-image = cv2.imread("test_images/shelve.png")
+image = cv2.imread("test_images/justred6.png")
 hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 h, s, v = cv2.split(hsv)
 

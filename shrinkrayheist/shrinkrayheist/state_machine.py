@@ -38,15 +38,11 @@ class StateMachine(Node):
 
     def person_callback(self, msg: Bool): #not necessary if using safety controller
         self.person_detected = msg.data
-        drive_msg = AckermannDriveStamped()
         if msg.data:
             self.get_logger().info(f"Person detected: {msg.data}")
             
-            drive_msg.drive.speed = 0.0
-            self.drive_pub.publish(drive_msg)
-        else:
-            drive_msg.drive.speed = 1.0
-            self.drive_pub.publish(drive_msg)
+            
+
  
     def traffic_light_callback(self, msg: Bool):
         self.red_light_detected = msg.data
@@ -59,19 +55,23 @@ class StateMachine(Node):
 
 
     def run_state_machine(self):
+        drive_msg = AckermannDriveStamped()
+
         if self.banana_detected or self.person_detected or self.red_light_detected or not self.path_planned: #stopped state
             # If anything detected or path planning, stop
             if self.person_detected or self.red_light_detected:
                 self.get_logger().info("Switching to STOPPED state!")
-
+                drive_msg.drive.speed = 0.0
+                self.drive_pub.publish(drive_msg)
+            
             elif self.banana_detected:
                 self.get_logger().info("Switching to STOPPED state and rerouting path!")
                 #TODO: reroute path by re path planning, stop car while path planning from car to banana, and then make it move again, 
   
 
         else:
-            #NOTE: ie nothing detected and path planning is true
-            pass #TODO: set velocity to smth constant? or do this inside trajectory follower
+            drive_msg.drive.speed = 1.0
+            self.drive_pub.publish(drive_msg)
 
 
 def main(args=None):
