@@ -7,8 +7,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Point
-from vs_msgs.msg import ConeLocationPixel
-from models.detector import Detector #fix import path, Detector in final_challenge_2025/shrinkrayheist/models
+# from model.detector import Detector #fix import path, Detector in final_challenge_2025/shrinkrayheist/models
 class PersonDetector(Node):
     def __init__(self):
         super().__init__("person_detector")
@@ -21,6 +20,8 @@ class PersonDetector(Node):
             self.ang_bounds = -np.pi/2, np.pi/2
             self.lidar_dist = 0.1
             self.car_width = 0.2
+            self.estop_dist = 1.0
+            self.count_threshold = 6
             callback = self.simple_estop_cb if self.simple_estop_cb else self.complex_estop_cb
      
             self.lidar_sub = self.create_subscription(LaserScan, "/scan", callback, 10)
@@ -41,9 +42,6 @@ class PersonDetector(Node):
         self.debug_pub.publish(debug_msg)
     def simple_estop_cb(self, scan_msg):
         """ Processes LIDAR scan data and determines if an emergency stop is needed """
-        
-       
-         
         min_angle_index = len(scan_msg.ranges)//2 - 15
         max_angle_index = len(scan_msg.ranges)//2 + 15
         ranges = np.array(scan_msg.ranges[min_angle_index:max_angle_index+1])
@@ -51,7 +49,7 @@ class PersonDetector(Node):
         
         ranges_satisfied = np.sum(ranges < self.estop_dist) 
 
-        should_estop =  ranges_satisfied >= self.count_threshold
+        should_estop =  bool(ranges_satisfied >= self.count_threshold)
         shoe_found = Bool()
         shoe_found.data = should_estop  
         self.shoe_pub.publish(shoe_found)
@@ -78,7 +76,7 @@ class PersonDetector(Node):
         mask_estop = (np.abs(y_coords) <= self.car_width) & (x_coords <= self.estop_dist)
         close_points_count = np.sum(mask_estop)
 
-        should_estop = (close_points_count >= self.count_threshold)
+        should_estop = bool(close_points_count >= self.count_threshold)
 
         shoe_found = Bool()
         shoe_found.data = should_estop  

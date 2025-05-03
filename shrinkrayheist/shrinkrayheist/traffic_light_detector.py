@@ -11,7 +11,7 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import Point #geometry_msgs not in CMake file
 
 # import your color segmentation algorithm; call this function in ros_image_callback!
-from computer_vision.color_segmentation import cd_color_segmentation
+from shrinkrayheist.computer_vision.color_segmentation import cd_color_segmentation
 
 class TrafficLightDetector(Node):
     def __init__(self):
@@ -34,7 +34,11 @@ class TrafficLightDetector(Node):
         red_light_status.data = bounding_box != ((0, 0), (0, 0))            
         self.redlight_pub.publish(red_light_status)
         #For visualization
+        if red_light_status.data:
+            top_left, bottom_right = bounding_box
+            cv2.rectangle(image, top_left, bottom_right, (0, 0, 255), 2)  # Red box, thickness 2
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
+
         self.debug_pub.publish(debug_msg)
 
 def main(args=None):

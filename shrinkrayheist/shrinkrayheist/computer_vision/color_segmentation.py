@@ -73,11 +73,11 @@ def cd_color_segmentation(img):
 	bounding_box = ((0,0),(0,0))
 	hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-	lower_hue, upper_hue = 0,13  
+	lower_hue, upper_hue = 0,20  
 	lower_brightness, upper_brightness = 130, 255 
 	
 	#We need to dark reds (nonsaturaed) and bright reds (saturated) due to glare effect
-	lower_bound1 = np.array([lower_hue, 200, lower_brightness], dtype=np.uint8) 
+	lower_bound1 = np.array([lower_hue, 180, lower_brightness], dtype=np.uint8) 
 	upper_bound1 = np.array([upper_hue, 225, upper_brightness], dtype=np.uint8)
 	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
 
@@ -87,30 +87,108 @@ def cd_color_segmentation(img):
 
 # Combine both masks
 	mask = cv2.bitwise_or(mask1, mask2)
-	biggest_bounding_box = bounding_box
+	best_bounding_box = bounding_box
 	biggest_area = 0
 	contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-	for contour in contours:
-		if 250 <cv2.contourArea(contour) < 750:  # if we see a bounding box of this size we probably want to stop
-			x, y, w, h = cv2.boundingRect(contour)
-			bounding_box = ( (x, y), (x + w, y + h))
-			if w*h > biggest_area:
-				biggest_area = w * h
-				biggest_bounding_box = bounding_box
-			
 
+	for contour in contours:
+		area = cv2.contourArea(contour)
+		
+		if 20 < area < 500:
+			x, y, w, h = cv2.boundingRect(contour)
+			aspect_ratio = w / h if h != 0 else 0
+
+			# Check if aspect ratio is close to 1 (square-like)
+			if 0.75 <= aspect_ratio <= 1.25:
+				
+				print(area)
+				bounding_box = ((x, y), (x + w, y + h))
+				
+				if w * h > biggest_area:
+					biggest_area = w * h
+					best_bounding_box = bounding_box
 	if biggest_area == 0:
 		return ((0,0),(0,0))
-	return biggest_bounding_box
+	cv2.rectangle(image, best_bounding_box[0], best_bounding_box[1], (0, 255, 0), 2)
+	return best_bounding_box
 
+# def cd_color_segmentation(img):
+# 	"""
+# 	Implement the cone detection using color segmentation algorithm
+# 	with glare reduction on bright white regions.
+# 	"""
+# 	import cv2
+# 	import numpy as np
+
+# 	def reduce_glare(img_bgr):
+# 		# Convert to HSV for glare suppression
+# 		hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+# 		h, s, v = cv2.split(hsv)
+
+# 		# Reduce brightness in overexposed areas (e.g., values > 230)
+# 		v = np.where(v > 230, 230, v)
+
+# 		# Optionally reduce saturation for very bright regions
+# 		s = np.where(v > 220, s * 0.8, s)
+
+# 		# Reconstruct and convert back
+# 		hsv = cv2.merge((h, s.astype(np.uint8), v.astype(np.uint8)))
+# 		return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+# 	# Apply glare reduction
+# 	img = reduce_glare(img)
+
+# 	# Proceed with color segmentation
+# 	bounding_box = ((0,0),(0,0))
+# 	hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+# 	lower_hue, upper_hue = 0, 20  
+# 	lower_brightness, upper_brightness = 130, 255 
+	
+# 	lower_bound1 = np.array([lower_hue, 200, lower_brightness], dtype=np.uint8) 
+# 	upper_bound1 = np.array([upper_hue, 225, upper_brightness], dtype=np.uint8)
+# 	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
+
+# 	lower_bound2 = np.array([lower_hue, 0, lower_brightness], dtype=np.uint8)
+# 	upper_bound2 = np.array([upper_hue, 10, upper_brightness], dtype=np.uint8)
+# 	mask2 = cv2.inRange(hsv_image, lower_bound2, upper_bound2)
+
+# 	mask = cv2.bitwise_or(mask1, mask2)
+
+# 	best_bounding_box = bounding_box
+# 	biggest_area = 0
+# 	contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+# 	for contour in contours:
+# 		area = cv2.contourArea(contour)
+# 		if 15 < area < 500:
+# 			x, y, w, h = cv2.boundingRect(contour)
+# 			bounding_box = ((x, y), (x + w, y + h))
+# 			if w * h > biggest_area:
+# 				biggest_area = w * h
+# 				best_bounding_box = bounding_box
+
+# 	if biggest_area == 0:
+# 		return ((0,0),(0,0))
+# 	return best_bounding_box
 if __name__ == "__main__":
-	image_path = "test_images/light1.png"
-	image = cv2.imread(image_path)
-	bounding_box = cd_color_segmentation(np.array(image))
-	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
-	image_print(np.array(image))
-	image_path = "test_images/light2.png"
-	image = cv2.imread(image_path)
-	bounding_box = cd_color_segmentation(np.array(image))
-	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
-	image_print(np.array(image))
+	for i in range(1, 6):
+		image_path = f"test_images/stopdistance/light{i}.png"
+		image = cv2.imread(image_path)
+		
+		if image is None:
+			print(f"Failed to load {image_path}")
+			continue
+
+		bounding_box = cd_color_segmentation(np.array(image))
+		
+		# Only draw the bounding box if it's valid
+		# if bounding_box != ((0, 0), (0, 0)):
+		# 	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
+		
+		image_print(np.array(image))
+	# image_path = "test_images/light2.png"
+	# image = cv2.imread(image_path)
+	# bounding_box = cd_color_segmentation(np.array(image))
+	# cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
+	# image_print(np.array(image))
