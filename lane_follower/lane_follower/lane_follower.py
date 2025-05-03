@@ -7,6 +7,7 @@ import cv2
 from cv_bridge import CvBridge, CvBridgeError
 
 from sensor_msgs.msg import Image
+from ackermann_msgs.msg import AckermannDriveStamped
 
 class SimpleLaneFollower(Node):
     """
@@ -15,13 +16,26 @@ class SimpleLaneFollower(Node):
     def __init__(self):
         super().__init__("simple_lane_follower")
         
+        # Parameters
+        self.declare_parameter("max_speed", 4.0)  # m/s
+        self.declare_parameter("steering_gain", 0.6)  # Proportional gain for steering
+        self.declare_parameter("steering_derivative_gain", 0.2)  # Derivative gain for steering
+        self.declare_parameter("lookahead_distance", 150)  # pixels
+        
+        # Get parameters
+        self.max_speed = self.get_parameter("max_speed").value
+        self.steering_gain = self.get_parameter("steering_gain").value
+        self.steering_derivative_gain = self.get_parameter("steering_derivative_gain").value
+        self.lookahead_distance = self.get_parameter("lookahead_distance").value
+        
         # Image processing parameters
         self.canny_low_threshold = 50
         self.canny_high_threshold = 150
         self.min_line_length = 30
         self.max_line_gap = 20
-        self.min_slope = 0.3  # Minimum slope to consider a line
-        self.white_threshold = 210  # Threshold for white color detection
+        self.min_slope = 0.3  # Minimum slope to consider a line (increased to filter out horizontal lines)
+        self.max_slope = 10.0  # Maximum slope to filter out near-vertical lines
+        self.white_threshold = 220  # Increased threshold for stricter white color detection
         
         # Define ROI vertices - wider trapezoid to focus on lane area
         # This is crucial for filtering out irrelevant edges in the image
@@ -31,6 +45,7 @@ class SimpleLaneFollower(Node):
         ], dtype=np.int32)
         
         # Publishers and subscribers
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/navigation", 10)
         self.debug_pub = self.create_publisher(Image, "/lane_debug_img", 10)
         
         self.image_sub = self.create_subscription(
@@ -40,10 +55,18 @@ class SimpleLaneFollower(Node):
             5
         )
         
+        # Controller state
+        self.prev_error = 0.0
+        self.prev_steering_angle = 0.0
+        
+        # Speed control parameters
+        self.min_speed = 1.0  # Minimum speed in m/s
+        self.curve_speed_factor = 0.7  # Speed reduction factor for curves
+        
         # Initialize CvBridge
         self.bridge = CvBridge()
         
-        self.get_logger().info("Simple Lane Follower Initialized")
+        self.get_logger().info("Lane Follower with PD Controller Initialized")
 
     def detect_lane_lines(self, img):
         """
@@ -61,11 +84,21 @@ class SimpleLaneFollower(Node):
         crop_height = height // 2
         img = img[crop_height:, :]
 
-        # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        # Apply white color segmentation to filter out gray lines
-        _, white_mask = cv2.threshold(gray, self.white_threshold, 255, cv2.THRESH_BINARY)
+        # Enhanced white color masking using HSV color space
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # Define range for white color in HSV
+        # Low saturation and high value (brightness) for white
+        lower_white = np.array([0, 0, self.white_threshold])
+        upper_white = np.array([180, 30, 255])
+        
+        # Create mask for white color
+        white_mask = cv2.inRange(hsv, lower_white, upper_white)
+        
+        # Apply morphological operations to remove noise
+        kernel = np.ones((3,3), np.uint8)
+        white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_OPEN, kernel)
+        white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_CLOSE, kernel)
 
         # Apply Canny edge detection
         edges = cv2.Canny(white_mask, self.canny_low_threshold, self.canny_high_threshold)
@@ -117,7 +150,8 @@ class SimpleLaneFollower(Node):
             length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
             # Filter by length and slope
-            if length < self.min_line_length or abs(slope) < self.min_slope:
+            # Skip lines that are too horizontal (slope too small) or too vertical (slope too large)
+            if length < self.min_line_length or abs(slope) < self.min_slope or abs(slope) > self.max_slope:
                 continue
 
             # Classify as left or right based on slope
@@ -194,6 +228,56 @@ class SimpleLaneFollower(Node):
         y_intersect = m1 * x_intersect + b1
 
         return (int(x_intersect), int(y_intersect))
+        
+    def calculate_steering_angle(self, goal_x, car_position_x, width):
+        """
+        Calculate steering angle using a PD controller.
+        
+        Args:
+            goal_x: X-coordinate of the goal point
+            car_position_x: X-coordinate of the car's position
+            width: Width of the image
+            
+        Returns:
+            steering_angle: Calculated steering angle
+        """
+        # Calculate error (deviation from center to goal)
+        error = goal_x - car_position_x
+        
+        # Calculate derivative of error
+        error_derivative = error - self.prev_error
+        
+        # PD control law
+        steering_angle = (self.steering_gain * error / (width / 2)) + \
+                         (self.steering_derivative_gain * error_derivative / (width / 2))
+        
+        # Update previous error
+        self.prev_error = error
+        
+        # Clip to valid steering range (-0.4 to 0.4 radians)
+        steering_angle = np.clip(steering_angle, -0.4, 0.4)
+        
+        return steering_angle
+    
+    def calculate_speed(self, steering_angle):
+        """
+        Calculate the appropriate speed based on steering angle.
+        
+        Args:
+            steering_angle: Current steering angle
+            
+        Returns:
+            speed: Calculated speed
+        """
+        # Base speed is maximum speed
+        speed = self.max_speed
+        
+        # Reduce speed for sharp turns
+        turn_factor = 1.0 - (abs(steering_angle) / 0.4) * (1.0 - self.curve_speed_factor)
+        speed *= turn_factor
+        
+        # Ensure speed doesn't go below minimum
+        return max(self.min_speed, min(speed, self.max_speed))
 
     def image_callback(self, image_msg):
         """
@@ -317,21 +401,33 @@ class SimpleLaneFollower(Node):
                 # Draw a line from car position to the goal point
                 cv2.line(debug_img, car_position, (goal_x, goal_y), (0, 255, 255), 2)  # Yellow line
             
-            # Optionally draw ROI trapezoid (commented out as it's already used in processing)
-            # adjusted_roi = np.array([
-            #     [(0, height), (width//6, height//2), (5*width//6, height//2), (width, height)]
-            # ], dtype=np.int32)
-            # cv2.polylines(debug_img, adjusted_roi, isClosed=True, color=(255, 255, 0), thickness=2)
-            
-            # Add status information
+            # Calculate steering angle and speed if goal point is found
             if intersection_point is not None:
-                x, y = intersection_point
-                status_text = f"Intersection: ({x}, {y})"
+                # Use the closer goal point for steering
+                steering_angle = self.calculate_steering_angle(goal_x, car_position[0], width)
+                speed = self.calculate_speed(steering_angle)
+                
+                # Create and publish drive command
+                drive_cmd = AckermannDriveStamped()
+                drive_cmd.header.stamp = self.get_clock().now().to_msg()
+                drive_cmd.drive.steering_angle = steering_angle
+                drive_cmd.drive.speed = speed
+                self.drive_pub.publish(drive_cmd)
+                
+                # Add status information with steering and speed
+                status_text = f"Intersection: ({x_intersect}, {y_intersect}) | Steering: {steering_angle:.2f} | Speed: {speed:.1f} m/s"
                 cv2.putText(debug_img, status_text, (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             else:
-                cv2.putText(debug_img, "No intersection found", (10, 30),
+                cv2.putText(debug_img, "No intersection found - STOPPED", (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                
+                # Publish stop command if no goal point
+                drive_cmd = AckermannDriveStamped()
+                drive_cmd.header.stamp = self.get_clock().now().to_msg()
+                drive_cmd.drive.steering_angle = 0.0
+                drive_cmd.drive.speed = 0.0
+                self.drive_pub.publish(drive_cmd)
             
             # Publish debug image
             debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
