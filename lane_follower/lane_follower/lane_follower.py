@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rclpy
+#testing
 from rclpy.node import Node
 import numpy as np
 import cv2
@@ -57,6 +58,18 @@ class LaneFollower(Node):
         self.min_line_length = 30  # minimum line length in pixels
         self.min_slope = 0.2  # minimum absolute slope value
 
+        # State tracking variables
+        self.lane_departure_count = 0
+        self.long_breach_count = 0
+        self.is_outside_lane = False
+        self.lane_number = 1
+        
+        # Define ROI vertices for visualization
+        height, width = 480, 640  # Default camera resolution
+        self.roi_vertices = np.array([
+            [(0, height), (width//3, height//2), (2*width//3, height//2), (width, height)]
+        ], dtype=np.int32)
+
         self.get_logger().info("Lane Follower Initialized")
 
     def detect_lane_lines(self, img):
@@ -68,6 +81,7 @@ class LaneFollower(Node):
 
         Returns:
             lines: Detected lines from Hough transform
+            crop_height: Height where image was cropped
         """
         # Crop image to remove background features
         height, width = img.shape[:2]
@@ -169,7 +183,8 @@ class LaneFollower(Node):
                         best_pair = (left, right)
 
         if best_pair:
-            return best_pair
+            # Return the two lines separately, not as a tuple
+            return best_pair[0], best_pair[1]
         else:
             # If no good pairs found, return steepest lines
             best_left = max(left_lines, key=lambda x: abs((x[0][3] - x[0][1])/(x[0][2] - x[0][0])))
@@ -191,7 +206,11 @@ class LaneFollower(Node):
             left_x: X-coordinate of the left lane boundary
             right_x: X-coordinate of the right lane boundary
         """
-        height, width = img_shape
+        # Handle both 2-value and 3-value shape tuples
+        if len(img_shape) == 3:
+            height, width, _ = img_shape
+        else:
+            height, width = img_shape
         top_y = crop_height  # Top of the cropped image
 
         # Default values at image center
@@ -286,6 +305,12 @@ class LaneFollower(Node):
             image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
             height, width = image.shape[:2]
 
+            # Default values in case no lines are detected
+            goal_x = width // 2
+            left_x = width // 4
+            right_x = 3 * width // 4
+            steering_angle = self.const_steering_angle
+            
             # Detect lane lines
             lines, crop_height = self.detect_lane_lines(image)
 
@@ -302,189 +327,153 @@ class LaneFollower(Node):
                 # Calculate steering angle
                 steering_angle = self.calculate_steering_angle(goal_x, width)
 
-                # Update previous angle for timer callback
-                self.prev_angle = steering_angle
-
-                # Create and publish drive command
-                drive_cmd = AckermannDriveStamped()
-                drive_cmd.header.stamp = self.get_clock().now().to_msg()
-                drive_cmd.drive.steering_angle = steering_angle
-                drive_cmd.drive.speed = self.max_speed
-                self.drive_pub.publish(drive_cmd)
-
-                # Create debug visualization
-                debug_img = image.copy()
-
-                # Draw detected lines
-                if best_left is not None:
-                    x1, y1, x2, y2 = best_left[0]
-                    cv2.line(debug_img, (x1, y1 + crop_height), 
-                            (x2, y2 + crop_height), (0, 0, 255), 2)
-
-                if best_right is not None:
-                    x1, y1, x2, y2 = best_right[0]
-                    cv2.line(debug_img, (x1, y1 + crop_height),
-                            (x2, y2 + crop_height), (255, 0, 0), 2)
-
-                # Draw goal point
-                cv2.circle(debug_img, (goal_x, crop_height), 5, (0, 255, 0), -1)
-
-                # Add status text
-                cv2.putText(debug_img, 
-                          f"Steering: {steering_angle:.3f} rad", 
-                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 
-                          0.8, (255, 255, 255), 2)
-
-                # Publish debug image
-                debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
-                self.debug_pub.publish(debug_msg)
-
-        except CvBridgeError as e:
-            self.get_logger().error(f"CV Bridge error: {e}")
-        except Exception as e:
-            self.get_logger().error(f"Error in image_callback: {e}")
-            height, width = image.shape[:2]
-
-            # Detect lane lines
-            lines, edges = self.detect_lane_lines(image)
-
-            # Classify lines as left or right
-            left_lines, right_lines = self.classify_lane_lines(lines, width)
-
-            # Calculate lane center
-            center_x, bottom_y, left_x, right_x = self.calculate_lane_center(
-                left_lines, right_lines, image.shape
-            )
+            # Update previous angle for timer callback
+            self.prev_angle = steering_angle
 
             # Car position (assumed to be at the bottom center of the image)
             car_position_x = width // 2
-
-            # Calculate steering angle
-            steering_angle = self.calculate_steering_angle(center_x, car_position_x, width)
+            bottom_y = height - 1
 
             # Check for lane departure
-            current_outside_lane = self.detect_lane_departure(left_x, right_x, car_position_x)
+            self.lane_departure_detection(left_x, right_x, goal_x, car_position_x, bottom_y)
 
-            # Track lane departure
-            current_time = self.get_clock().now()
-            if current_outside_lane and not self.is_outside_lane:
-                # New lane departure
-                self.outside_lane_start_time = current_time
-                self.is_outside_lane = True
-                self.lane_departure_count += 1
-
-                # Publish lane departure event
-                departure_msg = Bool()
-                departure_msg.data = True
-                self.lane_departure_pub.publish(departure_msg)
-
-                self.get_logger().warn("Lane departure detected!")
-
-            elif current_outside_lane and self.is_outside_lane:
-                # Continuing lane departure
-                if self.outside_lane_start_time is not None:
-                    duration = (current_time - self.outside_lane_start_time).nanoseconds / 1e9
-                    if duration > 3.0:  # Long breach (>3 seconds)
-                        if not hasattr(self, 'long_breach_reported') or not self.long_breach_reported:
-                            self.long_breach_count += 1
-                            self.long_breach_reported = True
-                            self.get_logger().error(f"Long lane breach detected! (#{self.long_breach_count})")
-
-            elif not current_outside_lane and self.is_outside_lane:
-                # Recovered from lane departure
-                self.outside_lane_start_time = None
-                self.is_outside_lane = False
-                self.long_breach_reported = False
-
-                # Publish lane recovery event
-                departure_msg = Bool()
-                departure_msg.data = False
-                self.lane_departure_pub.publish(departure_msg)
-
-                self.get_logger().info("Recovered from lane departure")
-
-            # Calculate appropriate speed
-            speed = self.calculate_speed(steering_angle, self.is_outside_lane)
-
+            # Adjust speed based on lane departure
+            speed = self.max_speed * 0.8 if self.is_outside_lane else self.max_speed
+            
+            # Create debug image
+            debug_img = image.copy()
+            
+            # Draw detected lane lines
+            if lines is not None:
+                # Draw all detected lines in light gray
+                for line in lines:
+                    x1, y1, x2, y2 = line[0]
+                    # Adjust y coordinates for cropping
+                    cv2.line(debug_img, (x1, y1 + crop_height), (x2, y2 + crop_height), (200, 200, 200), 1)
+                
+                # Draw best left line in red
+                if best_left is not None:
+                    x1, y1, x2, y2 = best_left[0]
+                    # Adjust y coordinates for cropping
+                    cv2.line(debug_img, (x1, y1 + crop_height), (x2, y2 + crop_height), (0, 0, 255), 2)
+                    cv2.putText(debug_img, "Left", (x1, y1 + crop_height - 10), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                
+                # Draw best right line in blue
+                if best_right is not None:
+                    x1, y1, x2, y2 = best_right[0]
+                    # Adjust y coordinates for cropping
+                    cv2.line(debug_img, (x1, y1 + crop_height), (x2, y2 + crop_height), (255, 0, 0), 2)
+                    cv2.putText(debug_img, "Right", (x1, y1 + crop_height - 10), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+            
+            # Draw lane boundaries at the bottom of the image
+            cv2.line(debug_img, (left_x, bottom_y), (left_x, bottom_y - 50), (0, 255, 255), 2)
+            cv2.line(debug_img, (right_x, bottom_y), (right_x, bottom_y - 50), (0, 255, 255), 2)
+            
+            # Draw horizontal line connecting lane boundaries
+            cv2.line(debug_img, (left_x, bottom_y), (right_x, bottom_y), (255, 0, 255), 2)
+            
+            # Draw midpoint as a distinct marker
+            midpoint = (left_x + right_x) // 2
+            cv2.circle(debug_img, (midpoint, bottom_y), 5, (255, 0, 255), -1)
+            cv2.putText(debug_img, f"Mid: {midpoint}", (midpoint - 40, bottom_y - 20), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 1)
+            
+            # Draw goal point
+            cv2.circle(debug_img, (goal_x, crop_height), 8, (0, 255, 0), -1)
+            cv2.putText(debug_img, "Goal", (goal_x + 10, crop_height), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+            
+            # Draw car position
+            cv2.circle(debug_img, (car_position_x, bottom_y), 8, (255, 255, 0), -1)
+            cv2.putText(debug_img, "Car", (car_position_x + 10, bottom_y), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
+            
+            # Draw steering direction line
+            steer_length = 50
+            steer_x = int(car_position_x + steer_length * np.sin(steering_angle))
+            steer_y = int(bottom_y - steer_length * np.cos(steering_angle))
+            cv2.line(debug_img, (car_position_x, bottom_y), (steer_x, steer_y), (0, 255, 255), 2)
+            
+            # Draw ROI trapezoid
+            roi_vertices = np.array([
+                [(0, height), (width//3, height//2), (2*width//3, height//2), (width, height)]
+            ], dtype=np.int32)
+            cv2.polylines(debug_img, roi_vertices, isClosed=True, color=(0, 255, 255), thickness=2)
+            
+            # Add status text
+            status_text = f"Lane: {self.lane_number}, Speed: {speed:.1f} m/s, Angle: {steering_angle:.2f}"
+            cv2.putText(debug_img, status_text, (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Add lane departure status
+            departure_text = "LANE DEPARTURE!" if self.is_outside_lane else "In Lane"
+            color = (0, 0, 255) if self.is_outside_lane else (0, 255, 0)
+            cv2.putText(debug_img, departure_text, (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            
+            # Publish debug image
+            debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
+            self.debug_pub.publish(debug_msg)
+            
             # Create and publish drive command
+            current_time = self.get_clock().now()
             drive_cmd = AckermannDriveStamped()
             drive_cmd.header.stamp = current_time.to_msg()
             drive_cmd.drive.steering_angle = steering_angle
             drive_cmd.drive.speed = speed
             self.drive_pub.publish(drive_cmd)
-
-            # Log control values periodically (every 20 frames)
-            if not hasattr(self, 'log_counter'):
-                self.log_counter = 0
-                
-            self.log_counter += 1
-            if self.log_counter % 20 == 0:
-                self.get_logger().info(
-                    f"Speed: {speed:.2f} m/s, Steering: {steering_angle:.2f}, "
-                    f"Lane departures: {self.lane_departure_count}, "
-                    f"Long breaches: {self.long_breach_count}"
-                )
-
-            # Create debug image
-            debug_img = image.copy()
-
-            # Draw lane lines
-            if left_lines is not None:
-                for line in left_lines:
-                    x1, y1, x2, y2 = line[0]
-                    cv2.line(debug_img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-
-            if right_lines is not None:
-                for line in right_lines:
-                    x1, y1, x2, y2 = line[0]
-                    cv2.line(debug_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-
-            # Draw lane center and car position
-            cv2.circle(debug_img, (center_x, bottom_y), 10, (0, 255, 0), -1)
-            cv2.circle(debug_img, (car_position_x, bottom_y), 10, (255, 255, 0), -1)
             
-            # Draw midpoint calculation line and point
-            cv2.line(debug_img, (left_x, bottom_y), (right_x, bottom_y), (255, 0, 255), 2)  # Purple horizontal line
-            
-            # Draw the midpoint as a distinct marker (purple diamond)
-            midpoint = (left_x + right_x) // 2
-            diamond_size = 8
-            diamond_points = np.array([
-                [midpoint, bottom_y - diamond_size],  # top
-                [midpoint + diamond_size, bottom_y],  # right
-                [midpoint, bottom_y + diamond_size],  # bottom
-                [midpoint - diamond_size, bottom_y]   # left
-            ], np.int32)
-            cv2.fillPoly(debug_img, [diamond_points], (255, 0, 255))  # Purple diamond
-            
-            cv2.putText(debug_img, f"Mid: {midpoint}", (midpoint - 40, bottom_y - 20), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
-
-            # Draw lane boundaries
-            cv2.line(debug_img, (left_x, bottom_y), (left_x, bottom_y - 50), (0, 255, 255), 3)
-            cv2.line(debug_img, (right_x, bottom_y), (right_x, bottom_y - 50), (0, 255, 255), 3)
-
-            # Add text with current status
-            status_text = f"Lane: {self.lane_number}, Speed: {speed:.1f} m/s"
-            cv2.putText(debug_img, status_text, (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-
-            departure_text = "LANE DEPARTURE!" if self.is_outside_lane else "In Lane"
-            color = (0, 0, 255) if self.is_outside_lane else (0, 255, 0)
-            cv2.putText(debug_img, departure_text, (10, 60),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-
-            # trapezoid vis
-            cv2.polylines(debug_img, self.roi_vertices, isClosed=True, color=(0,255,255), thickness=2)
-            # Publish debug image
-
-            debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
-            self.debug_pub.publish(debug_msg)
-
         except CvBridgeError as e:
             self.get_logger().error(f"CV Bridge error: {e}")
         except Exception as e:
+            import traceback
             self.get_logger().error(f"Error in image_callback: {e}")
+            self.get_logger().error(f"Traceback: {traceback.format_exc()}")
+
+    def lane_departure_detection(self, left_x, right_x, center_x, car_position_x, bottom_y):
+        """
+        Detect and handle lane departures.
+
+        Args:
+            left_x: X-coordinate of left lane boundary
+            right_x: X-coordinate of right lane boundary
+            center_x: X-coordinate of lane center
+            car_position_x: X-coordinate of car position
+            bottom_y: Y-coordinate for visualization
+        """
+        # Initialize variables
+        if not hasattr(self, 'outside_lane_start_time'):
+            self.outside_lane_start_time = None
+            self.long_breach_reported = False
+
+        # Check if car is outside lane boundaries
+        current_outside_lane = not (left_x < car_position_x < right_x)
+
+        # Handle lane departure state changes
+        if current_outside_lane and not self.is_outside_lane:
+            # New lane departure
+            self.is_outside_lane = True
+            self.outside_lane_start_time = self.get_clock().now()
+            self.lane_departure_count += 1
+            self.get_logger().warn("Lane departure detected!")
+
+        elif current_outside_lane and self.is_outside_lane:
+            # Continuing lane departure
+            if self.outside_lane_start_time is not None:
+                duration = (self.get_clock().now() - self.outside_lane_start_time).nanoseconds / 1e9
+                if duration > 3.0 and not self.long_breach_reported:  # Long breach (>3 seconds)
+                    self.long_breach_count += 1
+                    self.long_breach_reported = True
+                    self.get_logger().error(f"Long lane breach detected! (#{self.long_breach_count})")
+
+        elif not current_outside_lane and self.is_outside_lane:
+            # Recovered from lane departure
+            self.is_outside_lane = False
+            self.outside_lane_start_time = None
+            self.long_breach_reported = False
+            self.get_logger().info("Recovered from lane departure")
 
 
 def main(args=None):
