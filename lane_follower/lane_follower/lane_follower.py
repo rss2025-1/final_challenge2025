@@ -126,7 +126,7 @@ class LaneFollower(Node):
                 continue
 
             # Classify as left or right based on slope
-            if slope < 0:
+            if slope > 0:
                 left_lines.append(line)
             else:
                 right_lines.append(line)

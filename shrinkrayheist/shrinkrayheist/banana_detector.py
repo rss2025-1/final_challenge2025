@@ -7,7 +7,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 from .model.detector import Detector #this is YOLO
-from ackermann_msgs.msg import AckermannDriveStamped
+from datetime import datetime
 
 class BananaDetector(Node):
     def __init__(self):
@@ -15,7 +15,6 @@ class BananaDetector(Node):
 
         self.banana_state_pub = self.create_publisher(Bool, "/banana_detected", 10)  
         self.debug_pub = self.create_publisher(Image, "/banana_debug_img", 10)
-        self.safety_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 1)
         
         self.image_sub = self.create_subscription(Image, "/zed/zed_node/rgb/image_rect_color", self.image_callback, 5)
 
@@ -25,6 +24,7 @@ class BananaDetector(Node):
 
         # State flags
         self._detection_enabled = True
+        self._detection_pause_time = 10.0
         self._phase1_timer = None
         self._phase2_timer = None
 
@@ -62,6 +62,16 @@ class BananaDetector(Node):
         debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
         self.debug_pub.publish(debug_msg)
 
+    def screenshot_banana(self, debug_image, predictions):
+        # Screenshot debug image (with boxes)
+        pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
+        debug_image = np.array(pil_debug_image)
+        debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
+
+        fname = datetime.now().strftime('/banana_img/banana_%Y%m%d_%H%M%S.png')
+        cv2.imwrite(fname, debug_image)
+        self.get_logger().info(f"Saved banana image to {fname}")
+
     def image_callback(self, image_msg):
         """
         Uses YOLO to detect banana. If detected, publish location and detection state.
@@ -96,21 +106,16 @@ class BananaDetector(Node):
             self.get_logger().info(f"Largest banana size detected: {largest_banana_size_detected}")
 
         # Stop when the banana is found
-        if banana_detected:
+        if banana_detected and self._detection_enabled:
             self.get_logger().info(f"Banana! stopping car and pausing detection.")
+            self.screenshot_banana(debug_image, predictions)
             self._trigger_stop_and_pause()
 
         # Publish debug image (with boxes)
         self.publish_debug_image(debug_image, predictions)
 
     def _trigger_stop_and_pause(self):
-        # 1) Publish zero‐speed Ackermann to safety topic
-        stop_msg = AckermannDriveStamped()
-        stop_msg.drive.speed = 0.0
-        stop_msg.drive.steering_angle = 0.0
-        self.safety_pub.publish(stop_msg)
-
-        # 2) Schedule Phase 1 timer: after 5 s, enter pause phase
+        # Schedule Phase 1 timer: after 5 s, enter pause phase
         if self._phase1_timer is None:
             self._phase1_timer = self.create_timer(
                 5.0,
@@ -120,6 +125,7 @@ class BananaDetector(Node):
     def _enter_pause_phase(self):
         # Disable further detection
         self._detection_enabled = False
+        self.get_logger().info(f"Detection disabled for {self._detection_pause_time}s")
 
         # Cancel Phase 1 timer so it only fires once
         if self._phase1_timer:
@@ -129,7 +135,7 @@ class BananaDetector(Node):
         # Schedule Phase 2 timer: after 10 s of pause, resume detection
         if self._phase2_timer is None:
             self._phase2_timer = self.create_timer(
-                10.0,
+                self._detection_pause_time,
                 self._resume_detection
             )
 
