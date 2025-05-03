@@ -64,10 +64,10 @@ class LaneFollower(Node):
         self.is_outside_lane = False
         self.lane_number = 1
         
-        # Define ROI vertices for visualization
+        # Define ROI vertices for visualization - wider trapezoid
         height, width = 480, 640  # Default camera resolution
         self.roi_vertices = np.array([
-            [(0, height), (width//3, height//2), (2*width//3, height//2), (width, height)]
+            [(0, height), (width//6, height//2), (5*width//6, height//2), (width, height)]
         ], dtype=np.int32)
 
         self.get_logger().info("Lane Follower Initialized")
@@ -91,8 +91,8 @@ class LaneFollower(Node):
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Apply white color segmentation
-        _, white_mask = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
+        # Apply stricter white color segmentation to filter out gray lines
+        _, white_mask = cv2.threshold(gray, 210, 255, cv2.THRESH_BINARY)
 
         # Apply Canny edge detection
         edges = cv2.Canny(white_mask, self.canny_low_threshold, self.canny_high_threshold)
@@ -379,6 +379,22 @@ class LaneFollower(Node):
             cv2.circle(debug_img, (midpoint, bottom_y), 5, (255, 0, 255), -1)
             cv2.putText(debug_img, f"Mid: {midpoint}", (midpoint - 40, bottom_y - 20), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 1)
+            
+            # Draw lane boundaries with clear markers
+            cv2.line(debug_img, (left_x, crop_height), (left_x, bottom_y), (255, 0, 0), 2)
+            cv2.circle(debug_img, (left_x, crop_height), 6, (255, 0, 0), -1)
+            cv2.putText(debug_img, f"L:{left_x}", (left_x - 40, crop_height - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+            
+            cv2.line(debug_img, (right_x, crop_height), (right_x, bottom_y), (0, 0, 255), 2)
+            cv2.circle(debug_img, (right_x, crop_height), 6, (0, 0, 255), -1)
+            cv2.putText(debug_img, f"R:{right_x}", (right_x + 10, crop_height - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            
+            # Draw lane center
+            cv2.line(debug_img, (goal_x, crop_height), (goal_x, bottom_y), (0, 255, 255), 1)
+            cv2.putText(debug_img, "Center", (goal_x + 10, crop_height + 20), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
             
             # Draw goal point
             cv2.circle(debug_img, (goal_x, crop_height), 8, (0, 255, 0), -1)
