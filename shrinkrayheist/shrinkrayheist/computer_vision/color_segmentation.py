@@ -147,7 +147,7 @@ if __name__ == "__main__":
 	# 	# 	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
 	# 	print(bounding_box)
 	# 	image_print(np.array(image))
-	image_path = "test_images/realredlight_full.png"
+	image_path = "test_images/fullscene.png"
 	image = cv2.imread(image_path)
 	bounding_box = cd_color_segmentation(np.array(image))
 	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
