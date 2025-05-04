@@ -31,7 +31,7 @@ class TrafficLightDetector(Node):
         bounding_box = cd_color_segmentation(np.array(image))
         
         red_light_status = Bool()
-        red_light_status.data = bounding_box != ((0, 0), (0, 0))            
+        red_light_status.data = (bounding_box != ((0, 0), (0, 0)))            
         self.redlight_pub.publish(red_light_status)
         #For visualization
         if red_light_status.data:

@@ -16,7 +16,7 @@ class AutonomousReplanner(Node):
         self.create_subscription(Pose, '/pf_estimated_pose', self.pf_pose_callback, 10)
 
         # Example: Save your original goal pose here
-        self.goal_pose = self.create_goal_pose(1.5, 2.0, 0.0)  # x, y, yaw
+        self.goal_pose = self.create_goal_pose(4.0, 0.0, 0.0)  # x, y, yaw
         self.replanned = False
 
         self.get_logger().info('Autonomous replanner node started.')

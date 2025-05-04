@@ -99,11 +99,8 @@ def cd_color_segmentation(img):
 			aspect_ratio = w / h if h != 0 else 0
 
 			# Check if aspect ratio is close to 1 (square-like)
-			if 0.75 <= aspect_ratio <= 1.25:
-				
-				print(area)
+			if 0.75 <= aspect_ratio <= 1.25:				
 				bounding_box = ((x, y), (x + w, y + h))
-				
 				if w * h > biggest_area:
 					biggest_area = w * h
 					best_bounding_box = bounding_box
@@ -185,9 +182,9 @@ if __name__ == "__main__":
 		# Only draw the bounding box if it's valid
 		# if bounding_box != ((0, 0), (0, 0)):
 		# 	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
-		
+		print(bounding_box)
 		image_print(np.array(image))
-	# image_path = "test_images/light2.png"
+	# image_path = "test_images/greenlight.png"
 	# image = cv2.imread(image_path)
 	# bounding_box = cd_color_segmentation(np.array(image))
 	# cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)

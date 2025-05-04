@@ -61,18 +61,15 @@ class StateMachine(Node):
     def run_state_machine(self):
         drive_msg = AckermannDriveStamped()
 
-        if self.banana_detected or self.person_detected or self.red_light_detected or not self.path_planned: #stopped state
-            # If anything detected or path planning, stop
-            if self.person_detected or self.red_light_detected:
-                self.get_logger().info("Switching to STOPPED state!")
+        if self.banana_detected or self.person_detected or self.red_light_detected or not self.path_planned: 
+            if self.person_detected or self.red_light_detected: #stopped state
+                self.get_logger().info("In STOPPED state!")
                 drive_msg.drive.speed = 0.0
                 self.drive_pub.publish(drive_msg)
             
-            elif self.banana_detected:
-                self.get_logger().info("Switching to STOPPED state and rerouting path!")
-                #TODO: reroute path by re path planning, stop car while path planning from car to banana, and then make it move again, 
-  
-
+            elif self.banana_detected: #wait state
+                self.get_logger().info("In WAIT state!")
+                drive_msg.drive.speed = 0.0  
         else:
             drive_msg.drive.speed = 1.0
             self.drive_pub.publish(drive_msg)
