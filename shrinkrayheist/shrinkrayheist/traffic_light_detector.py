@@ -35,7 +35,8 @@ class TrafficLightDetector(Node):
         h_end = 3 * h // 4
         w_start = w // 4
         w_end = 3 * w // 4
-
+        cv2.line(image, (0, h // 4), (w, h // 4), (0, 255, 0), 2)  # Green line at 1/4 height
+        cv2.line(image, (0, 3 * h // 4), (w, 3 * h // 4), (0, 255, 0), 2)  # Green line at 3/4 height
 # Crop the middle half
         image = image[h_start:h_end, w_start:w_end]        
         bounding_box = cd_color_segmentation(np.array(image))
@@ -46,7 +47,8 @@ class TrafficLightDetector(Node):
         #For visualization
         if red_light_status.data:
             top_left, bottom_right = bounding_box
-            cv2.rectangle(image, top_left, bottom_right, (0, 0, 255), 2)  # Red box, thickness 2
+            cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)  # Red box, thickness 2
+            
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
 
         self.debug_pub.publish(debug_msg)
