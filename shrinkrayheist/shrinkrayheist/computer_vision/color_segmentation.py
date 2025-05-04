@@ -102,18 +102,18 @@ def cd_color_segmentation(img):
 	for contour in contours:
 		area = cv2.contourArea(contour)
 		
-		if area > 100:
+		if area > 50:
 			x, y, w, h = cv2.boundingRect(contour)
 			aspect_ratio = w / h if h != 0 else 0
 
 			# Check if aspect ratio is close to 1 (square-like)
-			# if 0.75 <= aspect_ratio <= 1.25:				
-			bounding_box = ((x, y), (x + w, y + h))
-			if w * h > biggest_area:
-				biggest_area = w * h
-				# print(biggest_area)
+			if 0.75 <= aspect_ratio <= 1.25:				
+				bounding_box = ((x, y), (x + w, y + h))
+				if w * h > biggest_area:
+					biggest_area = w * h
+					# print(biggest_area)
 
-				best_bounding_box = bounding_box
+					best_bounding_box = bounding_box
 			# cv2.rectangle(img, bounding_box[0], bounding_box[1], (255, 0, 0), 2)
 			# image_print(img)
 	if biggest_area == 0:

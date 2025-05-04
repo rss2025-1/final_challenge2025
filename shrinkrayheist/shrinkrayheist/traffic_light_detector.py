@@ -29,7 +29,7 @@ class TrafficLightDetector(Node):
         """
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")        
         bounding_box = cd_color_segmentation(np.array(image))
-        
+        self.get_logge().ifno(f"{bounding_box}")
         red_light_status = Bool()
         red_light_status.data = (bounding_box != ((0, 0), (0, 0)))            
         self.redlight_pub.publish(red_light_status)
