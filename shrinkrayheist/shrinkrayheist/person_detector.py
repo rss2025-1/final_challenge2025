@@ -7,7 +7,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Point
-from model.detector import Detector # yolo nodel
+from shrinkrayheist.model.detector import Detector # yolo nodel
 
 class PersonDetector(Node):
     def __init__(self):
