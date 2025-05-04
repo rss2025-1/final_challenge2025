@@ -13,7 +13,7 @@ class PersonDetector(Node):
     def __init__(self):
         super().__init__("person_detector")
 
-        self.use_yolo = True
+        self.use_yolo = False
         self.use_lidar = True
 
         # shared publisher for stop signal

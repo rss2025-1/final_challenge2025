@@ -36,9 +36,9 @@ class StateMachine(Node):
         if self.banana_detected:
             self.get_logger().info(f"Banana detected: {msg.data}")
             # Stop the car while banana is detected
-            stop_msg = AckermannDriveStamped()
-            stop_msg.drive.speed = 0.0
-            self.drive_pub.publish(stop_msg)
+            # stop_msg = AckermannDriveStamped()
+            # stop_msg.drive.speed = 0.0
+            # self.drive_pub.publish(stop_msg)
 
     def person_callback(self, msg: Bool): #not necessary if using safety controller
         self.person_detected = msg.data
