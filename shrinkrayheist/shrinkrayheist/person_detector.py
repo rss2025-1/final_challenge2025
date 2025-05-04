@@ -47,7 +47,8 @@ class PersonDetector(Node):
 
     def publish_estop(self, should_stop: bool):
         msg = Bool()
-        msg.data = should_stop
+        msg.data = bool(should_stop)
+        
         self.estop_pub.publish(msg)
 
     def yolo_cb(self, image_msg):
