@@ -88,8 +88,8 @@ class PersonDetector(Node):
         close_count = np.sum(ranges < self.estop_dist)
 
         should_stop = bool(close_count >= self.count_threshold)
-        if should_stop:
-            self.get_logger().info("LIDAR: Obstacle detected. Triggering estop.")
+        # if should_stop:
+            # self.get_logger().info("LIDAR: Obstacle detected. Triggering estop.")
         self.publish_estop(should_stop)
 
     def complex_estop_cb(self, scan_msg):
