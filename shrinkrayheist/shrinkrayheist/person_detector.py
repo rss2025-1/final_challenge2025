@@ -87,7 +87,7 @@ class PersonDetector(Node):
         ranges = np.array(scan_msg.ranges[min_angle_index:max_angle_index+1])
         close_count = np.sum(ranges < self.estop_dist)
 
-        should_stop = close_count >= self.count_threshold
+        should_stop = bool(close_count >= self.count_threshold)
         if should_stop:
             self.get_logger().info("LIDAR: Obstacle detected. Triggering estop.")
         self.publish_estop(should_stop)
@@ -98,7 +98,7 @@ class PersonDetector(Node):
         ranges = np.array(scan_msg.ranges)
         angles = np.linspace(scan_msg.angle_min, scan_msg.angle_max, len(ranges))
 
-        valid = ranges > self.lidar_dist
+        valid = bool(ranges > self.lidar_dist)
         ranges, angles = ranges[valid], angles[valid]
 
         mask = (angles >= angle_start) & (angles <= angle_end)
