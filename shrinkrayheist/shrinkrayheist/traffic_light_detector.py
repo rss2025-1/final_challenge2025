@@ -31,8 +31,8 @@ class TrafficLightDetector(Node):
         h, w = image.shape[:2]
 
         # Compute bounds for the middle half
-        h_start = h // 3 
-        h_end = 3 * h // 4
+        h_start = h // 4 
+        h_end = 2 * h // 3
 
         image = image[h_start:h_end, :]        
         bounding_box = cd_color_segmentation(np.array(image))
