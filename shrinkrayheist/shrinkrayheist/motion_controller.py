@@ -9,14 +9,33 @@ class AutonomousReplanner(Node):
         super().__init__('autonomous_replanner')
 
         # Publishers to path planning's topics
+<<<<<<< Updated upstream
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
+=======
+        # self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
+        self.start_pose = self.create_goal_pose(0.0, 0.0, 0.0)  # x, y, yaw
+
+        self.start_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
+        # self.start_pose_sub = self.create_subscription(PoseWithCovarianceStamped, '/pf_pose_odom', self.pf_pose_callback, 10) # topic should be a state machine information
+
+      
+
+>>>>>>> Stashed changes
         self.goal_pose_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
 
         # Example setup: Subscribing to a topic giving PF estimate
         self.create_subscription(Pose, '/pf_estimated_pose', self.pf_pose_callback, 10)
 
         # Example: Save your original goal pose here
+<<<<<<< Updated upstream
         self.goal_pose = self.create_goal_pose(4.0, 0.0, 0.0)  # x, y, yaw
+=======
+        self.get_logger().info('Setting up initial and goal poses...')
+        self.goal_pose = self.create_goal_pose(4.0, 0.0, 0.0)  # x, y, yaw
+        # self.publish_initial_pose(self.start_pose)
+        self.publish_initial_pose(self.start_pose_pub)
+        self.publish_goal_pose(self.goal_pose)
+>>>>>>> Stashed changes
         self.replanned = False
 
         self.get_logger().info('Autonomous replanner node started.')

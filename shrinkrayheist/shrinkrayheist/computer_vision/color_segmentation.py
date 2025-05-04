@@ -108,7 +108,7 @@ def cd_color_segmentation(img):
 					best_bounding_box = bounding_box
 	if biggest_area == 0:
 		return ((0,0),(0,0))
-	cv2.rectangle(image, best_bounding_box[0], best_bounding_box[1], (0, 255, 0), 2)
+	#cv2.rectangle(image, best_bounding_box[0], best_bounding_box[1], (0, 255, 0), 2)
 	return best_bounding_box
 
 
