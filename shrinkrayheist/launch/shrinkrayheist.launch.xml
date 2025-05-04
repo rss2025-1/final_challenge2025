@@ -1,0 +1,21 @@
+<launch>
+    <!-- Launch the motion controller node -->
+    <node pkg="shrinkrayheist" exec="traffic_light_detector" name="traffic_light_detector" output="screen"> </node>
+
+    <node pkg="shrinkrayheist" exec="person_detector" name="person_detector" output="screen"> </node>
+
+    <node pkg="shrinkrayheist" exec="banana_detector" name="banana_detector" output="screen"> </node>
+
+    <node pkg="shrinkrayheist" exec="state_machine" name="state_machine" output="screen"> </node>
+    <!-- Launch the path planning node -->
+    <node pkg="path_planning" exec="trajectory_planner" name="trajectory_planner" output="screen">
+        <param from="$(find-pkg-share path_planning)/config/sim/pf_sim_config.yaml"/>
+    </node>
+    <node pkg="path_planning" exec="trajectory_follower" name="trajectory_follower">
+        <param from="$(find-pkg-share path_planning)/config/sim/pf_sim_config.yaml"/>
+    </node>
+    <!-- Launch the particle filter node -->
+    <node pkg="localization" exec="particle_filter" name="particle_filter" output="screen">
+        <param from="$(find-pkg-share localization)/params.yaml"/>
+    </node>
+</launch>
