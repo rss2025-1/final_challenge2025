@@ -27,7 +27,17 @@ class TrafficLightDetector(Node):
         """
         Take in image, if red light detected, we want to pubilsh red_light pub to state machine
         """
-        image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")        
+        image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
+        h, w = image.shape[:2]
+
+        # Compute bounds for the middle half
+        h_start = h // 4
+        h_end = 3 * h // 4
+        w_start = w // 4
+        w_end = 3 * w // 4
+
+# Crop the middle half
+        image = image[h_start:h_end, w_start:w_end]        
         bounding_box = cd_color_segmentation(np.array(image))
         # self.get_logger().info(f"{bounding_box}")
         red_light_status = Bool()
