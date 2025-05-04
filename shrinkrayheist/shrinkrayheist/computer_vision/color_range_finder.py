@@ -1,9 +1,39 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+def crop_50x50(image, corner: str, x: int, y: int):
+    if corner == "bottom-right":
+        x1 = x - 30
+        y1 = y - 30
+    elif corner == "bottom-left":
+        x1 = x
+        y1 = y - 30
+    else:
+        raise ValueError("corner must be either 'bottom-right' or 'bottom-left'")
+    
+    # Ensure bounds are valid
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = x1 + 30
+    y2 = y1 + 30
 
+    # Crop
+    return image[y1:y2, x1:x2]
 # Load and convert image
-image = cv2.imread("test_images/redlight.png")
+image = cv2.imread("test_images/racecarredlight.png")
+
+# Crop the image (store result in 'cropped', not 'iamge')
+image = crop_50x50(image, corner="bottom-right", x=480, y=100)
+cv2.imshow("Top Middle-Right 50x50", image)
+cv2.waitKey(0)
+height, width, _ = image.shape
+
+# Coordinates for a 50x50 square in the top-middle-right
+
+
+# Crop the region
+
+cv2.destroyAllWindows()
 hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 h, s, v = cv2.split(hsv)
 

@@ -73,16 +73,22 @@ def cd_color_segmentation(img):
 	bounding_box = ((0,0),(0,0))
 	hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-	lower_hue, upper_hue = 0, 15
-	lower_saturation, upper_saturation = 200, 230
-	lower_value, upper_value = 150, 240
+	lower_hue, upper_hue = 0,20  
+	lower_brightness, upper_brightness = 130, 255 
+	
+	#We need to dark reds (nonsaturaed) and bright reds (saturated) due to glare effect
+	lower_bound1 = np.array([0, 235, 150], dtype=np.uint8) 
+	upper_bound1 = np.array([20, 255, 250], dtype=np.uint8)
+	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
 
-	# Create lower and upper bounds
-	lower_bound = np.array([lower_hue, lower_saturation, lower_value], dtype=np.uint8)
-	upper_bound = np.array([upper_hue, upper_saturation, upper_value], dtype=np.uint8)
+	lower_bound2 = np.array([175, 235, 150], dtype=np.uint8)
+	upper_bound2 = np.array([180, 255, 250], dtype=np.uint8)
+	mask2 = cv2.inRange(hsv_image, lower_bound2, upper_bound2)
+
+# Combine both masks
+	mask = cv2.bitwise_or(mask1, mask2)
 
 	# Create the mask
-	mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
 	height = mask.shape[0]
 	mask[height // 2:, :] = 0  # Zero out lower half
 	# cv2.imshow("HSV Mask", mask)
@@ -96,18 +102,20 @@ def cd_color_segmentation(img):
 	for contour in contours:
 		area = cv2.contourArea(contour)
 		
-		if area > 40:
+		if area > 100:
 			x, y, w, h = cv2.boundingRect(contour)
 			aspect_ratio = w / h if h != 0 else 0
 
 			# Check if aspect ratio is close to 1 (square-like)
-			if 0.75 <= aspect_ratio <= 1.25:				
-				bounding_box = ((x, y), (x + w, y + h))
-				if w * h > biggest_area:
-					biggest_area = w * h
-					# print(biggest_area)
+			# if 0.75 <= aspect_ratio <= 1.25:				
+			bounding_box = ((x, y), (x + w, y + h))
+			if w * h > biggest_area:
+				biggest_area = w * h
+				# print(biggest_area)
 
-					best_bounding_box = bounding_box
+				best_bounding_box = bounding_box
+			# cv2.rectangle(img, bounding_box[0], bounding_box[1], (255, 0, 0), 2)
+			# image_print(img)
 	if biggest_area == 0:
 		return ((0,0),(0,0))
 	#cv2.rectangle(image, best_bounding_box[0], best_bounding_box[1], (0, 255, 0), 2)
@@ -147,7 +155,7 @@ if __name__ == "__main__":
 	# 	# 	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
 	# 	print(bounding_box)
 	# 	image_print(np.array(image))
-	image_path = "test_images/fullscene.png"
+	image_path = "test_images/racecarredlight.png"
 	image = cv2.imread(image_path)
 	bounding_box = cd_color_segmentation(np.array(image))
 	cv2.rectangle(image, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
