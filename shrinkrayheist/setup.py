@@ -27,7 +27,7 @@ setup(
                              "traffic_light_detector = shrinkrayheist.traffic_light_detector:main",
                              "person_detector = shrinkrayheist.person_detector:main",
                              "banana_detector = shrinkrayheist.banana_detector:main",
-                             "motion_controller = shrinkrayheist.motion_controller:main",
+                             "autonomous_replanner = shrinkrayheist.autonomous_replanner:main",
         ],
     },
 )
