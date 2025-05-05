@@ -17,7 +17,7 @@ class StateMachine(Node):
         self.person_sub = self.create_subscription(Bool, '/shoe_detected', self.person_callback, 10)
         self.traffic_light_sub = self.create_subscription(Bool, '/red_light_detected', self.traffic_light_callback, 10)
         self.path_planned = self.create_subscription(Bool, '/path_planned', self.path_planned_callback, 10)
-        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/navigation", 10)
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
         # Publisher to path planner (example, could be more complex in reality)
         self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.ackermann_sub = self.create_subscription(
