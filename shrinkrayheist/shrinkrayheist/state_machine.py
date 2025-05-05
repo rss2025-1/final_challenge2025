@@ -20,17 +20,23 @@ class StateMachine(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/navigation", 10)
         # Publisher to path planner (example, could be more complex in reality)
         self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.ackermann_sub = self.create_subscription(
+            AckermannDriveStamped,
+            '/vesc/low_level/ackermann_cmd',
+            self.ackermann_callback,
+            10)
 
         # Timer to keep checking / acting
         self.timer = self.create_timer(0.5, self.run_state_machine)  # 2Hz
-
+        self.steering_angle = 0
         # Detection flags
         self.banana_detected = False
         self.person_detected = False
         self.red_light_detected = False
 
         self.get_logger().info("State Machine Initialized.")
-
+    def ackermann_callback(self, msg):
+        self.steering_angle = msg.drive.steering_angle
     def banana_callback(self, msg: Bool):
         self.banana_detected = msg.data
         if self.banana_detected:
@@ -61,16 +67,23 @@ class StateMachine(Node):
         if self.banana_detected or self.person_detected or self.red_light_detected or not self.path_planned: 
             if self.person_detected or self.red_light_detected: #stopped state
                 self.get_logger().info("In STOPPED state!")
+                drive_msg.header.stamp = self.get_clock().now().to_msg()
                 drive_msg.drive.speed = 0.0
+                drive_msg.drive.steering_angle = self.steering_angle
                 self.drive_pub.publish(drive_msg)
             
             elif self.banana_detected: #wait state
                 self.get_logger().info("In WAIT state!")
+                drive_msg.header.stamp = self.get_clock().now().to_msg()
+                drive_msg.drive.steering_angle = self.steering_angle
                 drive_msg.drive.speed = 0.0  
-        else:
-            # drive_msg.drive.speed = 0.0  
-            drive_msg.drive.speed = 1.0
-            self.drive_pub.publish(drive_msg)
+                self.drive_pub.publish(drive_msg)
+        # else:
+            # # drive_msg.drive.speed = 0.0  
+            # drive_msg.header.stamp = self.get_clock().now().to_msg()
+            # drive_msg.drive.speed = 1.0
+            # drive_msg.drive.steering_angle = self.steering_angle
+            # self.drive_pub.publish(drive_msg)
 
 
 def main(args=None):
