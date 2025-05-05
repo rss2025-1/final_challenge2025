@@ -17,8 +17,8 @@ class PersonDetector(Node):
         self.use_lidar = True
 
         # shared publisher for stop signal
-        self.estop_pub = self.create_publisher(Bool, "/shoe_detected", 10)
-
+        # self.estop_pub = self.create_publisher(Bool, "/shoe_detected", 10)
+        self.shoe_pub = self.create_publisher(Bool, "/shoe_detected", 10) 
         # YOLO
         if self.use_yolo:
             self.image_sub = self.create_subscription(Image, "/zed/zed_node/rgb/image_rect_color", self.yolo_cb, 5)
