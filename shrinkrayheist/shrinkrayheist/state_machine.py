@@ -68,8 +68,8 @@ class StateMachine(Node):
                 self.get_logger().info("In WAIT state!")
                 drive_msg.drive.speed = 0.0  
         else:
-            drive_msg.drive.speed = 0.0  
-            # drive_msg.drive.speed = 1.0
+            # drive_msg.drive.speed = 0.0  
+            drive_msg.drive.speed = 1.0
             self.drive_pub.publish(drive_msg)
 
 
