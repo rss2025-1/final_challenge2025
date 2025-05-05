@@ -91,7 +91,10 @@ class PersonDetector(Node):
         should_stop = bool(close_count >= self.count_threshold)
         # if should_stop:
             # self.get_logger().info("LIDAR: Obstacle detected. Triggering estop.")
-        self.publish_estop(should_stop)
+        # self.publish_estop(should_stop)
+        shoe_found = Bool()
+        shoe_found.data = should_stop  
+        self.shoe_pub.publish(shoe_found)
 
     def complex_estop_cb(self, scan_msg):
         """Advanced LIDAR estop using geometry filtering."""
