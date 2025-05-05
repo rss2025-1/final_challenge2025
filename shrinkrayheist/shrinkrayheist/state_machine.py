@@ -41,13 +41,11 @@ class StateMachine(Node):
        
         self.stop_points = PoseArray()
 
-        # final goal (you might set this elsewhere, or load as a param too)
-        # self.final_goal = PoseStamped()
-        # self.final_goal.pose.position.x, self.final_goal.pose.position.y = 5.0, 5.0
+      
 
         # state machine bookkeeping
         self.current_stop_index = 1
-        self.state = "PRE_PLAN"    # will cycle: GO_TO_STOP, DWELL, GO_TO_STOP, DWELL, GO_TO_GOAL, STOPPED
+        self.state = "PREPLAN"    # will cycle: PREPLAN GO_TO_STOP, DWELL, GO_TO_STOP, DWELL, GO_TO_GOAL, STOPPED
         self.stop_threshold = 0.2    # meters
         self.dwell_duration = 3.0    # seconds to wait at each stop
         self.stop_start_time = None
