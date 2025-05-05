@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import Bool
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 import numpy as np
 
@@ -13,47 +13,41 @@ class StateMachine(Node):
         
         # States
         self.state = "PATH_PLANNING"  # other possible: "STOPPED"
+        self.banana_detected = False
+        self.person_detected = False
+        self.red_light_detected = False
         
-        # Subscribers (these should publish True when detected)
+        # Subscribers 
         self.banana_sub = self.create_subscription(Bool, '/banana_detected', self.banana_callback, 10)
         self.person_sub = self.create_subscription(Bool, '/shoe_detected', self.person_callback, 10)
         self.traffic_light_sub = self.create_subscription(Bool, '/red_light_detected', self.traffic_light_callback, 10)
         self.path_planned = self.create_subscription(Bool, '/path_planned', self.path_planned_callback, 10)
-        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
-        # Publisher to path planner (example, could be more complex in reality)
-        self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.ackermann_sub = self.create_subscription(
             AckermannDriveStamped,
             '/vesc/low_level/ackermann_cmd',
             self.ackermann_callback,
             10)
+        self.pose_sub = self.create_subscription(PoseWithCovarianceStamped, "/initialpose", self.pose_cb, 10)
+        self.goal_sub = self.create_subscription(PoseStamped, "/goal_pose",self.goal_cb, 10)
+        
+        #Publishers
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
+        self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.start_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
 
-        # Timer to keep checking / acting
-        self.timer = self.create_timer(0.5, self.run_state_machine)  # 2Hz
-        self.steering_angle = 0
-        # Detection flags
-        self.banana_detected = False
-        self.person_detected = False
-        self.red_light_detected = False
+        self.timer = self.create_timer(0.1, self.run_state_machine)  #Timer to keep checking / acting
 
-        # Additional stoping logic
-        self.odom_pub = self.create_suscription(Odometry, "/pf/pose/odom", 10)
-
-
-        self.stop_points = []
-        p1 = PoseStamped()
-        p1.pose.position.x, p1.pose.position.y = 1.0, 2.0   # example coords
-        p2 = PoseStamped()
-        p2.pose.position.x, p2.pose.position.y = 3.5, -0.5  # example coords
-        self.stop_points = [p1, p2]
+        self.odom_pub = self.create_suscription(Odometry, "/pf/pose/odom", 10) # Additional stopping logic
+       
+        self.stop_points = PoseArray()
 
         # final goal (you might set this elsewhere, or load as a param too)
-        self.final_goal = PoseStamped()
-        self.final_goal.pose.position.x, self.final_goal.pose.position.y = 5.0, 5.0
+        # self.final_goal = PoseStamped()
+        # self.final_goal.pose.position.x, self.final_goal.pose.position.y = 5.0, 5.0
 
         # state machine bookkeeping
-        self.current_stop_index = 0
-        self.state = "GO_TO_STOP"    # will cycle: GO_TO_STOP, DWELL, GO_TO_STOP, DWELL, GO_TO_GOAL, STOPPED
+        self.current_stop_index = 1
+        self.state = "PRE_PLAN"    # will cycle: GO_TO_STOP, DWELL, GO_TO_STOP, DWELL, GO_TO_GOAL, STOPPED
         self.stop_threshold = 0.2    # meters
         self.dwell_duration = 3.0    # seconds to wait at each stop
         self.stop_start_time = None
@@ -63,6 +57,11 @@ class StateMachine(Node):
         self.get_logger().info("State Machine Initialized.")
 
     # helper functions for replanning
+    def pose_cb(self, msg):
+        self.stop_points.poses.append(msg.pose) #idk if we have to cast this 
+
+    def goal_cb(self, msg):
+        self.stop_points.poses.append(msg.pose)
     def odom_callback(self, msg: Odometry):
             x = msg.pose.pose.position.x
             y = msg.pose.pose.position.y
@@ -103,25 +102,38 @@ class StateMachine(Node):
 
     def run_state_machine(self):
             # 1) high-level navigation state
-        if self.state == "GO_TO_STOP":
-            goal = self.stop_points[self.current_stop_index]
-            self.goal_pub.publish(goal)
-            if self.arrived(goal):
+        if self.state == "PREPLAN":
+            if len(self.stop_points) ==4:
+                self.state = "GO_TO_STOP"
+        elif self.state == "GO_TO_STOP":
+            stop = self.stop_points[self.current_stop_index]
+            if self.arrived(stop):
                 self.get_logger().info(f"Reached stop {self.current_stop_index+1}, dwelling…")
-                self.state = "DWELL"
+                self.state = "PLAN"
                 self.stop_start_time = self.get_clock().now()
 
         elif self.state == "DWELL":
+            # pub goal pose here
+
             elapsed = (self.get_clock().now() - self.stop_start_time).nanoseconds / 1e9
             if elapsed >= self.dwell_duration:
                 self.current_stop_index += 1
-                if self.current_stop_index < len(self.stop_points):
+                if self.current_stop_index < len(self.stop_points) - 1:
                     self.state = "GO_TO_STOP"
                 else:
                     self.state = "GO_TO_GOAL"
                 self.get_logger().info(f"Leaving dwell, next state: {self.state}")
-
+        elif self.state == "PLAN":
+            stop = self.stop_points.poses[self.current_stop_index]
+            start = self.stop_points.poses[self.current_stop_index - 1] #can change this to odom in future
+            self.start_pub.publish(start)
+            self.goal_pub.publish(stop)
+            self.state = "DWELL"
         elif self.state == "GO_TO_GOAL":
+            stop = self.stop_points.poses[self.current_stop_index]
+            start = self.stop_points.poses[self.current_stop_index - 1] #can change this to odom in future
+            self.start_pub.publish(start)
+            self.goal_pub.publish(stop)
             self.goal_pub.publish(self.final_goal)
             if self.arrived(self.final_goal):
                 self.get_logger().info("Final goal reached, stopping.")
