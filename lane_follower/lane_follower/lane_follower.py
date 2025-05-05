@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from turtle import left
 import rclpy
 from rclpy.node import Node
 import numpy as np
@@ -38,7 +39,7 @@ class SimpleLaneFollower(Node):
         
         # Parameters
         self.declare_parameter("max_speed", 4.0)  # m/s
-        self.declare_parameter("steering_gain", 0.6)  # Proportional gain for steering
+        self.declare_parameter("steering_gain", 0.4)  # Proportional gain for steering
         self.declare_parameter("steering_derivative_gain", 0.2)  # Derivative gain for steering
         self.declare_parameter("lookahead_distance", 150)  # pixels
         
@@ -53,9 +54,9 @@ class SimpleLaneFollower(Node):
         self.canny_high_threshold = 150
         self.min_line_length = 30
         self.max_line_gap = 20
-        self.min_slope = 0.3  # Minimum slope to consider a line (increased to filter out horizontal lines)
+        self.min_slope = 0.1  # Minimum slope to consider a line (increased to filter out horizontal lines)
         self.max_slope = 10.0  # Maximum slope to filter out near-vertical lines
-        self.white_threshold = 220  # Increased threshold for stricter white color detection
+        self.white_threshold = 200  # Increased threshold for stricter white color detection
         
         # Define ROI vertices - wider trapezoid to focus on lane area
         # This is crucial for filtering out irrelevant edges in the image
@@ -115,9 +116,12 @@ class SimpleLaneFollower(Node):
         Returns:
             lines: Detected lines from Hough transform
             crop_height: Height where image was cropped
+            debug_img: Debug image with visualization (optional)
         """
-        # Crop image to remove background features
+        # Get image dimensions
         height, width = img.shape[:2]
+        
+        # Crop image to remove background features
         crop_height = height // 2
         img = img[crop_height:, :]
 
@@ -132,12 +136,22 @@ class SimpleLaneFollower(Node):
         # Create mask for white color
         white_mask = cv2.inRange(hsv, lower_white, upper_white)
         
-        # Apply morphological operations to remove noise
-        kernel = np.ones((3,3), np.uint8)
-        white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_OPEN, kernel)
+        # Apply more aggressive morphological operations to improve robustness
+        kernel = np.ones((3, 3), np.uint8)
+        
+        # First erode to remove small noise
+        white_mask = cv2.erode(white_mask, kernel, iterations=1)
+        
+        # Then dilate to enhance the remaining white pixels (lane lines)
+        white_mask = cv2.dilate(white_mask, kernel, iterations=2)
+        
+        # Apply morphological closing to fill gaps in lane lines
         white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_CLOSE, kernel)
+        
+        # Create a debug image for visualization
+        debug_mask = cv2.cvtColor(white_mask, cv2.COLOR_GRAY2BGR)
 
-        # Apply Canny edge detection
+        # Apply Canny edge detection on the processed mask
         edges = cv2.Canny(white_mask, self.canny_low_threshold, self.canny_high_threshold)
 
         # Apply region of interest mask
@@ -158,7 +172,7 @@ class SimpleLaneFollower(Node):
             maxLineGap=self.max_line_gap
         )
 
-        return lines, crop_height
+        return lines, crop_height, debug_mask
 
     def find_lane_lines(self, lines):
         """
@@ -375,8 +389,14 @@ class SimpleLaneFollower(Node):
             # Create a copy for visualization
             debug_img = image.copy()
             
-            # Detect lane lines
-            lines, crop_height = self.detect_lane_lines(image)
+            # Detect lane lines with enhanced erosion and dilation
+            lines, crop_height, mask_debug = self.detect_lane_lines(image)
+            
+            # Create a smaller version of the mask debug image for display
+            mask_debug_small = cv2.resize(mask_debug, (width//3, height//4))
+            
+            # Place the mask debug image in the top-right corner of the main debug image
+            debug_img[10:10+mask_debug_small.shape[0], width-10-mask_debug_small.shape[1]:width-10] = mask_debug_small
             
             # Find left and right lane lines
             left_line, right_line = self.find_lane_lines(lines)
@@ -504,11 +524,18 @@ class SimpleLaneFollower(Node):
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 
                 # Publish stop command if no goal point
-                drive_cmd = AckermannDriveStamped()
-                drive_cmd.header.stamp = self.get_clock().now().to_msg()
-                drive_cmd.drive.steering_angle = 0.0
-                drive_cmd.drive.speed = 0.0
-                self.drive_pub.publish(drive_cmd)
+                if left_line is None:
+                    drive_cmd = AckermannDriveStamped()
+                    drive_cmd.header.stamp = self.get_clock().now().to_msg()
+                    drive_cmd.drive.steering_angle = 0.1
+                    drive_cmd.drive.speed = 4.0
+                    self.drive_pub.publish(drive_cmd)
+                if right_line is None:
+                    drive_cmd = AckermannDriveStamped()
+                    drive_cmd.header.stamp = self.get_clock().now().to_msg()
+                    drive_cmd.drive.steering_angle = -0.1
+                    drive_cmd.drive.speed = 4.0
+                    self.drive_pub.publish(drive_cmd)
             
             # Publish debug image
             debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
