@@ -64,7 +64,7 @@ class StateMachine(Node):
     def run_state_machine(self):
         drive_msg = AckermannDriveStamped()
 
-        if self.banana_detected or self.person_detected or self.red_light_detected or not self.path_planned: 
+        if self.banana_detected or self.person_detected or self.red_light_detected: #or not self.path_planned: 
             if self.person_detected or self.red_light_detected: #stopped state
                 self.get_logger().info("In STOPPED state!")
                 drive_msg.header.stamp = self.get_clock().now().to_msg()
