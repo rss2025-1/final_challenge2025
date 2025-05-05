@@ -78,12 +78,12 @@ class StateMachine(Node):
                 drive_msg.drive.steering_angle = self.steering_angle
                 drive_msg.drive.speed = 0.0  
                 self.drive_pub.publish(drive_msg)
-        # else:
-            # # drive_msg.drive.speed = 0.0  
-            # drive_msg.header.stamp = self.get_clock().now().to_msg()
-            # drive_msg.drive.speed = 1.0
-            # drive_msg.drive.steering_angle = self.steering_angle
-            # self.drive_pub.publish(drive_msg)
+        else:
+            # drive_msg.drive.speed = 0.0  
+            drive_msg.header.stamp = self.get_clock().now().to_msg()
+            drive_msg.drive.speed = 1.0
+            drive_msg.drive.steering_angle = self.steering_angle
+            self.drive_pub.publish(drive_msg)
 
 
 def main(args=None):
