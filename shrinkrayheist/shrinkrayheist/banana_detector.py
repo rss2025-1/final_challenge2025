@@ -39,7 +39,7 @@ class BananaDetector(Node):
         largest_banana_size_detected = 0
 
         for (x1, y1, x2, y2), label in predictions:
-            if label.lower() == "banana":  # Assuming YOLO model uses label "banana"
+            if label.lower() in {"banana", "frisbee"}:  # Assuming YOLO model uses label "banana"
                 # Calculate center of bounding box
                 u = int((x1 + x2) / 2)
                 v = int((y1 + y2) / 2)
