@@ -48,13 +48,13 @@ class PersonDetector(Node):
         
         ranges_satisfied = np.sum(ranges < self.estop_dist)
 
-        if ranges_satisfied == 6:
-            self.get_logger().warn(f"Detected exactly 6 points, using previous valid count: {self.prev_valid_count}")
-            ranges_satisfied = self.prev_valid_count
-        else:
-            self.prev_valid_count = ranges_satisfied  # Update last valid value
+        # if ranges_satisfied == 6:
+        #     self.get_logger().warn(f"Detected exactly 6 points, using previous valid count: {self.prev_valid_count}")
+        #     ranges_satisfied = self.prev_valid_count
+        # else:
+        #     self.prev_valid_count = ranges_satisfied  # Update last valid value
 
-        self.get_logger().info(f"ranges_satisfied = {ranges_satisfied}, threshold = {self.count_threshold}")
+        # self.get_logger().info(f"ranges_satisfied = {ranges_satisfied}, threshold = {self.count_threshold}")
 
         should_estop = bool(ranges_satisfied >= self.count_threshold)
 
