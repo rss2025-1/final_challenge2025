@@ -21,7 +21,7 @@ class PersonDetector(Node):
             self.lidar_dist = 0.1
             self.car_width = 0.2
             self.estop_dist = 1.0
-            self.count_threshold = 4
+            self.count_threshold = 15
             callback = self.simple_estop_cb if self.simple_estop_cb else self.complex_estop_cb
 
             self.lidar_sub = self.create_subscription(LaserScan, "/scan", callback, 10)
@@ -48,7 +48,7 @@ class PersonDetector(Node):
         # self.get_logger().info(f"ranges is {ranges}")
 
         ranges_satisfied = np.sum(ranges < self.estop_dist) 
-
+        self.get_logger().info(f"{ranges_satisfied} ? {self.count_threshold}")
         should_estop =  bool(ranges_satisfied >= self.count_threshold)
         shoe_found = Bool()
         shoe_found.data = should_estop  
