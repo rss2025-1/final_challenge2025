@@ -23,7 +23,7 @@ class PersonDetector(Node):
             self.estop_dist = 1.0
             self.count_threshold = 15
             callback = self.simple_estop_cb if self.simple_estop_cb else self.complex_estop_cb
-
+            self.prev_valid_count = 0
             self.lidar_sub = self.create_subscription(LaserScan, "/scan", callback, 10)
 
         else:
