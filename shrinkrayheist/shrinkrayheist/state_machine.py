@@ -27,7 +27,7 @@ class StateMachine(Node):
         #     10)
 
         # Timer to keep checking / acting
-        # self.timer = self.create_timer(0.5, self.run_state_machine)  # 2Hz
+        self.timer = self.create_timer(0.1, self.run_state_machine)  # 2Hz
         self.steering_angle = 0
         # Detection flags
         self.banana_detected = False
