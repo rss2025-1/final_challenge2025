@@ -45,11 +45,19 @@ class PersonDetector(Node):
         min_angle_index = len(scan_msg.ranges)//2 - 15
         max_angle_index = len(scan_msg.ranges)//2 + 15
         ranges = np.array(scan_msg.ranges[min_angle_index:max_angle_index+1])
-        # self.get_logger().info(f"ranges is {ranges}")
+        
+        ranges_satisfied = np.sum(ranges < self.estop_dist)
 
-        ranges_satisfied = np.sum(ranges < self.estop_dist) 
-        self.get_logger().info(f"{ranges_satisfied} ? {self.count_threshold}")
-        should_estop =  bool(ranges_satisfied >= self.count_threshold)
+        if ranges_satisfied == 6:
+            self.get_logger().warn(f"Detected exactly 6 points, using previous valid count: {self.prev_valid_count}")
+            ranges_satisfied = self.prev_valid_count
+        else:
+            self.prev_valid_count = ranges_satisfied  # Update last valid value
+
+        self.get_logger().info(f"ranges_satisfied = {ranges_satisfied}, threshold = {self.count_threshold}")
+
+        should_estop = bool(ranges_satisfied >= self.count_threshold)
+
         shoe_found = Bool()
         shoe_found.data = should_estop  
         self.shoe_pub.publish(shoe_found)
