@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import Bool
-from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose, PoseStamped, PoseArray, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 import numpy as np
 
@@ -37,7 +37,7 @@ class StateMachine(Node):
 
         self.timer = self.create_timer(0.1, self.run_state_machine)  #Timer to keep checking / acting
 
-        self.odom_pub = self.create_suscription(Odometry, "/pf/pose/odom", 10) # Additional stopping logic
+        self.odom_sub = self.create_subscription(Odometry, "/pf/pose/odom", self.odom_callback, 10) # Additional stopping logic
        
         self.stop_points = PoseArray()
 
@@ -55,8 +55,11 @@ class StateMachine(Node):
         self.get_logger().info("State Machine Initialized.")
 
     # helper functions for replanning
-    def pose_cb(self, msg):
-        self.stop_points.poses.append(msg.pose) #idk if we have to cast this 
+    def pose_cb(self, msg: PoseWithCovarianceStamped):
+        pose = Pose()
+        pose.position = msg.pose.pose.position
+        pose.orientation = msg.pose.pose.orientation
+        self.stop_points.poses.append(pose)
 
     def goal_cb(self, msg):
         self.stop_points.poses.append(msg.pose)
@@ -65,11 +68,11 @@ class StateMachine(Node):
             y = msg.pose.pose.position.y
             self.current_pose = np.array([x, y])
 
-    def arrived(self, target: PoseStamped):
+    def arrived(self, target: Pose):
         if self.current_pose is None:
             return False
-        dx = target.pose.position.x - self.current_pose[0]
-        dy = target.pose.position.y - self.current_pose[1]
+        dx = target.position.x - self.current_pose[0]
+        dy = target.position.y - self.current_pose[1]
         return np.hypot(dx, dy) < self.stop_threshold
 
     def ackermann_callback(self, msg):
@@ -101,10 +104,10 @@ class StateMachine(Node):
     def run_state_machine(self):
             # 1) high-level navigation state
         if self.state == "PREPLAN":
-            if len(self.stop_points) ==4:
+            if len(self.stop_points.poses) ==4:
                 self.state = "GO_TO_STOP"
         elif self.state == "GO_TO_STOP":
-            stop = self.stop_points[self.current_stop_index]
+            stop = self.stop_points.poses[self.current_stop_index]
             if self.arrived(stop):
                 self.get_logger().info(f"Reached stop {self.current_stop_index+1}, dwelling…")
                 self.state = "PLAN"
@@ -123,17 +126,38 @@ class StateMachine(Node):
                 self.get_logger().info(f"Leaving dwell, next state: {self.state}")
         elif self.state == "PLAN":
             stop = self.stop_points.poses[self.current_stop_index]
-            start = self.stop_points.poses[self.current_stop_index - 1] #can change this to odom in future
-            self.start_pub.publish(start)
-            self.goal_pub.publish(stop)
+            start = self.stop_points.poses[self.current_stop_index - 1] 
+            
+            start_msg = PoseWithCovarianceStamped()
+            start_msg.header.stamp = self.get_clock().now().to_msg()
+            start_msg.header.frame_id = "map"  # or whatever frame is appropriate
+            start_msg.pose.pose = start
+
+            stop_stamped = PoseStamped()
+            stop_stamped.header.stamp = self.get_clock().now().to_msg()
+            stop_stamped.header.frame_id = "map"  # or whatever frame is appropriate
+            stop_stamped.pose = stop  # Assign the Pose object to PoseStamped
+                        
+            self.start_pub.publish(start_msg)
+            self.goal_pub.publish(stop_stamped)
             self.state = "DWELL"
         elif self.state == "GO_TO_GOAL":
             stop = self.stop_points.poses[self.current_stop_index]
-            start = self.stop_points.poses[self.current_stop_index - 1] #can change this to odom in future
-            self.start_pub.publish(start)
-            self.goal_pub.publish(stop)
-            self.goal_pub.publish(self.final_goal)
-            if self.arrived(self.final_goal):
+            start = self.stop_points.poses[self.current_stop_index - 1] 
+            
+            start_msg = PoseWithCovarianceStamped()
+            start_msg.header.stamp = self.get_clock().now().to_msg()
+            start_msg.header.frame_id = "map"  # or whatever frame is appropriate
+            start_msg.pose.pose = start
+            
+            stop_stamped = PoseStamped()
+            stop_stamped.header.stamp = self.get_clock().now().to_msg()
+            stop_stamped.header.frame_id = "map"  # or whatever frame is appropriate
+            stop_stamped.pose = stop  # Assign the Pose object to PoseStamped
+            self.start_pub.publish(start_msg)
+            self.goal_pub.publish(stop_stamped)
+            
+            if self.arrived(self.stop):
                 self.get_logger().info("Final goal reached, stopping.")
                 self.state = "STOPPED"
 
