@@ -107,13 +107,19 @@ class StateMachine(Node):
         if self.state == "PREPLAN":
             if len(self.stop_points.poses) ==4:
                 self.state = "GO_TO_STOP"
+            self.get_logger().info("In PREPLAN state, waiting for all stop points to be set.")
+            if len(self.stop_points.poses) > 1:
+                self.get_logger().info(f"Start pose: {self.stop_points.poses[0]}")
+                self.get_logger().info(f"Goal pose: {self.stop_points.poses[-1]}")
         elif self.state == "GO_TO_STOP":
             stop = self.stop_points.poses[self.current_stop_index]
             if self.arrived(stop):
                 self.get_logger().info(f"Reached stop {self.current_stop_index+1}, dwelling…")
                 self.state = "PLAN"
                 self.stop_start_time = self.get_clock().now()
-
+                self.get_logger().info(f"Planning from stop {self.current_stop_index} to stop {self.current_stop_index + 1}")
+                self.get_logger().info(f"Start pose: {self.stop_points.poses[self.current_stop_index - 1]}")
+                self.get_logger().info(f"Goal pose: {self.stop_points.poses[self.current_stop_index]}")
         elif self.state == "DWELL":
             # pub goal pose here
 
