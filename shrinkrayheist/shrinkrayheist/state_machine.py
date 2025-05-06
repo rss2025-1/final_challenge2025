@@ -107,10 +107,8 @@ class StateMachine(Node):
         if self.state == "PREPLAN":
             if len(self.stop_points.poses) ==4:
                 self.state = "GO_TO_STOP"
-            self.get_logger().info("In PREPLAN state, waiting for all stop points to be set.")
-            if len(self.stop_points.poses) > 1:
-                self.get_logger().info(f"Start pose: {self.stop_points.poses[0]}")
-                self.get_logger().info(f"Goal pose: {self.stop_points.poses[-1]}")
+                for i, pose in enumerate(self.stop_points.poses):
+                    self.get_logger().info(f"Pose {i+1}: {pose}")
         elif self.state == "GO_TO_STOP":
             stop = self.stop_points.poses[self.current_stop_index]
             if self.arrived(stop):
