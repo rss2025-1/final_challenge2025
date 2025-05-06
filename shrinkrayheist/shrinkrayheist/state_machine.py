@@ -107,6 +107,7 @@ class StateMachine(Node):
         if self.state == "PREPLAN":
             if len(self.stop_points.poses) ==4:
                 self.state = "GO_TO_STOP"
+                self.get_logger().info("Pre Plan Initialized.")
                 for i, pose in enumerate(self.stop_points.poses):
                     self.get_logger().info(f"Pose {i+1}: {pose}")
         elif self.state == "GO_TO_STOP":
