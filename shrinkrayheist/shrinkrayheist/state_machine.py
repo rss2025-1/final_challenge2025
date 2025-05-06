@@ -64,7 +64,7 @@ class StateMachine(Node):
     def goal_cb(self, msg):
         self.stop_points.poses.append(msg.pose)
     def odom_callback(self, msg: Odometry):
-            self.latest_pose = msg
+            self.latest_pose = msg.pose.pose
             x = msg.pose.pose.position.x
             y = msg.pose.pose.position.y
             self.current_pose = np.array([x, y])
