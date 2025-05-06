@@ -138,7 +138,7 @@ class StateMachine(Node):
             start_msg.header.stamp = self.get_clock().now().to_msg()
             start_msg.header.frame_id = "map"  # or whatever frame is appropriate
             # Access the pose correctly from the odometry message
-            start_msg.pose.pose = self.latest_pose.pose
+            start_msg.pose.pose = self.latest_pose
 
             stop_stamped = PoseStamped()
             stop_stamped.header.stamp = self.get_clock().now().to_msg()
@@ -158,7 +158,7 @@ class StateMachine(Node):
             start_msg.header.stamp = self.get_clock().now().to_msg()
             start_msg.header.frame_id = "map"  # or whatever frame is appropriate
             # Access the pose correctly from the odometry message
-            start_msg.pose.pose = self.latest_pose.pose
+            start_msg.pose.pose = self.latest_pose
             
             stop_stamped = PoseStamped()
             stop_stamped.header.stamp = self.get_clock().now().to_msg()
