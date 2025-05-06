@@ -64,6 +64,7 @@ class StateMachine(Node):
     def goal_cb(self, msg):
         self.stop_points.poses.append(msg.pose)
     def odom_callback(self, msg: Odometry):
+            self.latest_pose = msg
             x = msg.pose.pose.position.x
             y = msg.pose.pose.position.y
             self.current_pose = np.array([x, y])
@@ -119,7 +120,7 @@ class StateMachine(Node):
             elapsed = (self.get_clock().now() - self.stop_start_time).nanoseconds / 1e9
             if elapsed >= self.dwell_duration:
                 self.current_stop_index += 1
-                if self.current_stop_index < len(self.stop_points) - 1:
+                if self.current_stop_index < len(self.stop_points.poses) - 1:
                     self.state = "GO_TO_STOP"
                 else:
                     self.state = "GO_TO_GOAL"
@@ -141,6 +142,8 @@ class StateMachine(Node):
             self.start_pub.publish(start_msg)
             self.goal_pub.publish(stop_stamped)
             self.state = "DWELL"
+            self.get_logger().info(f"Reached Plan, next state: {self.state}")
+
         elif self.state == "GO_TO_GOAL":
             stop = self.stop_points.poses[self.current_stop_index]
             start = self.stop_points.poses[self.current_stop_index - 1] 
