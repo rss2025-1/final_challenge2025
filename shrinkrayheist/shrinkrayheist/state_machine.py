@@ -64,7 +64,7 @@ class StateMachine(Node):
     def goal_cb(self, msg):
         self.stop_points.poses.append(msg.pose)
     def odom_callback(self, msg: Odometry):
-            self.latest_pose = msg
+            self.latest_pose = msg.pose.pose
             x = msg.pose.pose.position.x
             y = msg.pose.pose.position.y
             self.current_pose = np.array([x, y])
@@ -133,12 +133,14 @@ class StateMachine(Node):
                 self.get_logger().info(f"Leaving dwell, next state: {self.state}")
         elif self.state == "PLAN":
             stop = self.stop_points.poses[self.current_stop_index]
-            start = self.stop_points.poses[self.current_stop_index - 1] 
-            
+        
             start_msg = PoseWithCovarianceStamped()
             start_msg.header.stamp = self.get_clock().now().to_msg()
             start_msg.header.frame_id = "map"  # or whatever frame is appropriate
-            start_msg.pose.pose = start
+            # start = self.stop_points.poses[self.current_stop_index - 1] 
+            if self.latest_pose is None:
+                self.get_logger().warn("Odom pose not available")
+            start_msg.pose.pose = self.latest_pose
 
             stop_stamped = PoseStamped()
             stop_stamped.header.stamp = self.get_clock().now().to_msg()
@@ -157,7 +159,10 @@ class StateMachine(Node):
             start_msg = PoseWithCovarianceStamped()
             start_msg.header.stamp = self.get_clock().now().to_msg()
             start_msg.header.frame_id = "map"  # or whatever frame is appropriate
-            start_msg.pose.pose = start
+            # start_msg.pose.pose = start
+            if self.latest_pose is None:
+                self.get_logger().warn("Odom pose not available")
+            start_msg.pose.pose = self.latest_pose
             
             stop_stamped = PoseStamped()
             stop_stamped.header.stamp = self.get_clock().now().to_msg()
