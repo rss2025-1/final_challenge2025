@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'lane_follower = lane_follower.lane_follower:main',
+            'yessir = lane_follower.yessir:main'
         ],
     },
 )
