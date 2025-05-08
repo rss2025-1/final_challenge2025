@@ -88,7 +88,7 @@ class StateMachine(Node):
 
     def motion_controller(self):
         # If we can plan and we have 4 stop points (start, banana 1, banana 2, end), proceed
-        if self.plan_state and (len(self.stop_points.poses) == 4):
+        if self.plan_state and (len(self.stop_points.poses) == 7):
             self.plan_state = False
             self.get_logger().info("Planning Path...")
             # This publishes the start and goal pose to the planner, which automatically follows the path as well
