@@ -85,12 +85,19 @@ class StateMachine(Node):
         if msg.data:
             self.get_logger().info(f"Goal reached: {msg.data}")
             self.plan_state = True
+            if self.current_stop_index == len(self.stop_points.poses) - 1:
+                self.get_logger().info("All stop points reached.")
 
     def motion_controller(self):
         # If we can plan and we have 4 stop points (start, banana 1, banana 2, end), proceed
         if self.plan_state and (len(self.stop_points.poses) == 7):
             self.plan_state = False
             self.get_logger().info("Planning Path...")
+            # Making a U-turn
+            if self.current_stop_index == 4:
+                self.get_logger().info("Making a U-turn...")
+                # U-turn function
+
             # This publishes the start and goal pose to the planner, which automatically follows the path as well
             self.start_pub.publish(self.current_pose)
             goal_pose = PoseStamped()
@@ -100,20 +107,18 @@ class StateMachine(Node):
             # Update the stop location going forward
             if self.current_stop_index < len(self.stop_points.poses) - 1:
                 self.current_stop_index += 1
-            else:
-                self.get_logger().info("All stop points reached.")
 
     def run_state_machine(self):
         # 1) motion controller
         self.motion_controller()
 
         # 2) safety overrides (banana, person, red-light) still apply
-        #if self.banana_detected or self.person_detected or self.red_light_detected:
-        #    drive_msg = AckermannDriveStamped()
-        #    drive_msg.header.stamp = self.get_clock().now().to_msg()
-        #    drive_msg.drive.speed = 0.0
-        #    self.drive_pub.publish(drive_msg)
-        #    return
+        if self.banana_detected or self.person_detected or self.red_light_detected:
+           drive_msg = AckermannDriveStamped()
+           drive_msg.header.stamp = self.get_clock().now().to_msg()
+           drive_msg.drive.speed = 0.0
+           self.drive_pub.publish(drive_msg)
+           return
 
 
 def main(args=None):
