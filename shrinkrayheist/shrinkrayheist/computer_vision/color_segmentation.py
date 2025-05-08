@@ -91,9 +91,9 @@ def cd_color_segmentation(img):
 	# Create the mask
 	height = mask.shape[0]
 	mask[height // 2:, :] = 0  # Zero out lower half
-	# cv2.imshow("HSV Mask", mask)
-	# cv2.waitKey(0)  # Waits indefinitely until a key is pressed
-	# cv2.destroyAllWindows()  # Closes all OpenCV windows
+	cv2.imshow("HSV Mask", mask)
+	cv2.waitKey(0)  # Waits indefinitely until a key is pressed
+	cv2.destroyAllWindows()  # Closes all OpenCV windows
 	# Process contours
 	best_bounding_box = bounding_box
 	biggest_area = 0
