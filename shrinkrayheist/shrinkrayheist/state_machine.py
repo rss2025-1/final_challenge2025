@@ -53,7 +53,12 @@ class StateMachine(Node):
     def goal_cb(self, msg):
         self.stop_points.poses.append(msg.pose)
         self.get_logger().info(f"There are {len(self.stop_points.poses)} stop points.")
-
+        # Add in the reverse path
+        if len(self.stop_points.poses) == 4:
+            self.stop_points.poses.append(self.stop_points.poses[2])
+            self.stop_points.poses.append(self.stop_points.poses[1])
+            self.stop_points.poses.append(self.stop_points.poses[0])
+            
     def odom_cb(self, msg: Odometry):
         self.current_pose.header = msg.header
         self.current_pose.pose = msg.pose
@@ -91,14 +96,10 @@ class StateMachine(Node):
             self.goal_pub.publish(goal_pose)
 
             # Update the stop location going forward
-            if self.current_stop_index < 3:
+            if self.current_stop_index < len(self.stop_points.poses) - 1:
                 self.current_stop_index += 1
-            elif self.current_stop_index == 0:
-                return
             else:
-                # Update the stop location going backward
-                self.current_stop_index -= 1
-            
+                self.get_logger().info("All stop points reached.")
 
     def run_state_machine(self):
         # 1) motion controller
