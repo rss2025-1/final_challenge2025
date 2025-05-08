@@ -42,6 +42,7 @@ class StateMachine(Node):
 
         # States for logging
         self.person_log = False 
+        self.red_light_log = False
 
         self.get_logger().info("State Machine Initialized.")
 
@@ -120,10 +121,15 @@ class StateMachine(Node):
 
         # 2) safety overrides (banana, person, red-light) still apply
         if self.banana_detected or self.person_detected or self.red_light_detected:
+
+            # Logging; This is implemented this way so that only one log is published. Feel free to ignore this.
             if self.person_detected and not self.person_log:
                 self.person_log = True
                 self.get_logger().info("Person detected. Stopping.")
-                
+            if self.red_light_detected and not self.red_light_log:
+                self.red_light_log = True
+                self.get_logger().info("Red light detected. Stopping.")
+            
             drive_msg = AckermannDriveStamped()
             drive_msg.header.stamp = self.get_clock().now().to_msg()
             drive_msg.drive.speed = 0.0
@@ -132,7 +138,10 @@ class StateMachine(Node):
 
         if self.person_log:
             self.get_logger().info("Person no longer detected. Resuming.")
-        self.person_log = False
+            self.person_log = False
+        if self.red_light_log:
+            self.get_logger().info("Red light no longer detected. Resuming.")
+            self.red_light_log = False
 
 def main(args=None):
     rclpy.init(args=args)
