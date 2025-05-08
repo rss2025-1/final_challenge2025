@@ -39,7 +39,7 @@ class Detector:
         ((xmin, ymin, xmax, ymax), class_label) for each detection
         above the given confidence threshold.
         """
-        results = list(self.model(img, verbose=not silent))[0]
+        results = list(self.model(img, verbose=not silent, conf=self.threshold))[0]
         boxes = results.boxes
 
         predictions = []

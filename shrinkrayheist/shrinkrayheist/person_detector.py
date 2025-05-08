@@ -18,10 +18,10 @@ class PersonDetector(Node):
         if not self.YOLO:
             self.simple_estop = True
             self.ang_bounds = -np.pi/2, np.pi/2
-            self.lidar_dist = 0.1
+            self.lidar_dist = 0.05
             self.car_width = 0.2
             self.estop_dist = 1.0
-            self.count_threshold = 6
+            self.count_threshold = 12 #6
             callback = self.simple_estop_cb if self.simple_estop_cb else self.complex_estop_cb
             self.prev_valid_count = 0
             self.lidar_sub = self.create_subscription(LaserScan, "/scan", callback, 10)
@@ -42,8 +42,8 @@ class PersonDetector(Node):
         self.debug_pub.publish(debug_msg)
     def simple_estop_cb(self, scan_msg):
         """ Processes LIDAR scan data and determines if an emergency stop is needed """
-        min_angle_index = len(scan_msg.ranges)//2 - 15
-        max_angle_index = len(scan_msg.ranges)//2 + 15
+        min_angle_index = len(scan_msg.ranges)//2 - 23
+        max_angle_index = len(scan_msg.ranges)//2 + 23
         ranges = np.array(scan_msg.ranges[min_angle_index:max_angle_index+1])
         
         ranges_satisfied = np.sum(ranges < self.estop_dist)
@@ -66,22 +66,18 @@ class PersonDetector(Node):
 
         angle_start, angle_end = self.ang_bounds
         num_ranges = len(scan_msg.ranges)
-        ranges = np.array(scan_msg.ranges)
-
-        angles = np.linspace(scan_msg.angle_min, scan_msg.angle_max, num_ranges)
-        mask_min_dist = np.where(ranges > self.lidar_dist)
-
-        ranges = ranges[mask_min_dist]
-        angles = angles[mask_min_dist]
-
-        scan_polar_vectors = np.vstack((ranges, angles))
-        scan_polar_vectors = scan_polar_vectors[:, (scan_polar_vectors[1, :] <= angle_end) & 
-                                                (scan_polar_vectors[1, :] >= angle_start)]
+        
+        #mask_min_dist = np.where(scan_msg.ranges > self.lidar_dist)
+        #ranges = np.array(scan_msg.ranges)[mask_min_dist]
+        angles = np.linspace(scan_msg.angle_min,scan_msg.angle_max, num_ranges)
+        angle_mask = (angles >= angle_start) and (angles <= angle_end)
+        ranges = ranges[angle_mask]
+        angles = angles[angle_mask]
 
         x_coords = ranges * np.cos(angles)
         y_coords = ranges * np.sin(angles)
 
-        mask_estop = (np.abs(y_coords) <= self.car_width) & (x_coords <= self.estop_dist)
+        mask_estop = (np.abs(y_coords) <= self.car_width) and (x_coords <= self.estop_dist)
         close_points_count = np.sum(mask_estop)
 
         should_estop = bool(close_points_count >= self.count_threshold)
