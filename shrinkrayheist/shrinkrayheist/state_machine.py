@@ -58,6 +58,8 @@ class StateMachine(Node):
             self.stop_points.poses.append(self.stop_points.poses[2])
             self.stop_points.poses.append(self.stop_points.poses[1])
             self.stop_points.poses.append(self.stop_points.poses[0])
+            self.get_logger().info("Adding reverse path.")
+            self.get_logger().info(f"There are {len(self.stop_points.poses)} stop points.")
             
     def odom_cb(self, msg: Odometry):
         self.current_pose.header = msg.header
@@ -106,12 +108,12 @@ class StateMachine(Node):
         self.motion_controller()
 
         # 2) safety overrides (banana, person, red-light) still apply
-        if self.banana_detected or self.person_detected or self.red_light_detected:
-            drive_msg = AckermannDriveStamped()
-            drive_msg.header.stamp = self.get_clock().now().to_msg()
-            drive_msg.drive.speed = 0.0
-            self.drive_pub.publish(drive_msg)
-            return
+        #if self.banana_detected or self.person_detected or self.red_light_detected:
+        #    drive_msg = AckermannDriveStamped()
+        #    drive_msg.header.stamp = self.get_clock().now().to_msg()
+        #    drive_msg.drive.speed = 0.0
+        #    self.drive_pub.publish(drive_msg)
+        #    return
 
 
 def main(args=None):
