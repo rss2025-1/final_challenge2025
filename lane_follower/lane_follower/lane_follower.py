@@ -10,25 +10,25 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from ackermann_msgs.msg import AckermannDriveStamped
 
-# ## Pixel measurements from the image plane
-# PTS_IMAGE_PLANE = [[204.0, 256.0],
-#                 [457.0, 256.0],
-#                 [148.0, 219.0],
-#                 [490.0, 216.0]] 
-# ######################################################
+## Pixel measurements from the image plane
+PTS_IMAGE_PLANE = [[204.0, 256.0],
+                [457.0, 256.0],
+                [148.0, 219.0],
+                [490.0, 216.0]] 
+######################################################
 
-# # PTS_GROUND_PLANE units are in inches
-# # car looks along positive x axis with positive y axis to left
+# PTS_GROUND_PLANE units are in inches
+# car looks along positive x axis with positive y axis to left
 
-# ######################################################
-# ## Real world measurements from the ground plane starting at the camera, using letter-sized paper
-# PTS_GROUND_PLANE = [[11.0, 8.5],
-#                     [11.0, -8.5],
-#                     [22.0, 17.0],
-#                     [22.0, -17.0]] 
-# ######################################################
+######################################################
+## Real world measurements from the ground plane starting at the camera, using letter-sized paper
+PTS_GROUND_PLANE = [[11.0, 8.5],
+                    [11.0, -8.5],
+                    [22.0, 17.0],
+                    [22.0, -17.0]] 
+######################################################
 
-# METERS_PER_INCH = 0.0254
+METERS_PER_INCH = 0.0254
 
 class SimpleLaneFollower(Node):
     """
@@ -38,7 +38,7 @@ class SimpleLaneFollower(Node):
         super().__init__("simple_lane_follower")
         
         # Parameters
-        self.declare_parameter("max_speed", 4.0)  # m/s
+        self.declare_parameter("max_speed", 3.0)  # m/s
         self.declare_parameter("steering_gain", 0.4)  # Proportional gain for steering
         self.declare_parameter("steering_derivative_gain", 0.2)  # Derivative gain for steering
         self.declare_parameter("lookahead_distance", 150)  # pixels
@@ -89,20 +89,20 @@ class SimpleLaneFollower(Node):
 
         # Pure Pursuit Controller
         # Initialize data into a homography matrix
-        # np_pts_ground = np.array(PTS_GROUND_PLANE)
-        # np_pts_ground = np_pts_ground * METERS_PER_INCH
-        # np_pts_ground = np.float32(np_pts_ground[:, np.newaxis, :])
+        np_pts_ground = np.array(PTS_GROUND_PLANE)
+        np_pts_ground = np_pts_ground * METERS_PER_INCH
+        np_pts_ground = np.float32(np_pts_ground[:, np.newaxis, :])
 
-        # np_pts_image = np.array(PTS_IMAGE_PLANE)
-        # np_pts_image = np_pts_image * 1.0
-        # np_pts_image = np.float32(np_pts_image[:, np.newaxis, :])
+        np_pts_image = np.array(PTS_IMAGE_PLANE)
+        np_pts_image = np_pts_image * 1.0
+        np_pts_image = np.float32(np_pts_image[:, np.newaxis, :])
 
-        # self.h, err = cv2.findHomography(np_pts_image, np_pts_ground)
-        # self.get_logger().info("Homography Transformer Initialized")
+        self.h, err = cv2.findHomography(np_pts_image, np_pts_ground)
+        self.get_logger().info("Homography Transformer Initialized")
 
-        # self.look_ahead = 0.5 # Lookahead distance
-        # self.wheelbase = 0.34 # Length of wheelbase
-        # self.max_steer_angle = 0.34
+        self.look_ahead = 2.5  # Lookahead distance in meters
+        self.wheelbase = 0.34  # Length of wheelbase in meters
+        self.max_steer_angle = 0.34  # Maximum steering angle in radians
         
         self.get_logger().info("Lane Follower with PD Controller Initialized")
 
@@ -122,7 +122,7 @@ class SimpleLaneFollower(Node):
         height, width = img.shape[:2]
         
         # Crop image to remove background features
-        crop_height = height // 2
+        crop_height = height // 4
         img = img[crop_height:, :]
 
         # Enhanced white color masking using HSV color space
@@ -152,7 +152,7 @@ class SimpleLaneFollower(Node):
         debug_mask = cv2.cvtColor(white_mask, cv2.COLOR_GRAY2BGR)
 
         # Apply Canny edge detection on the processed mask
-        edges = cv2.Canny(white_mask, self.canny_low_threshold, self.canny_high_threshold)
+        edges = cv2.Canny(debug_mask, self.canny_low_threshold, self.canny_high_threshold)
 
         # Apply region of interest mask
         mask = np.zeros_like(edges)
@@ -164,7 +164,7 @@ class SimpleLaneFollower(Node):
 
         # Apply Hough Transform to detect lines
         lines = cv2.HoughLinesP(
-            masked_edges,
+            edges,
             rho=1,
             theta=np.pi/180,
             threshold=20,
@@ -311,48 +311,79 @@ class SimpleLaneFollower(Node):
         return steering_angle
 
     ## Pure Pursuit 
-    # def transformUvToXy(self, u, v):
-    #     """
-    #     u and v are pixel coordinates.
-    #     The top left pixel is the origin, u axis increases to right, and v axis
-    #     increases down.
+    def transformUvToXy(self, u, v):
+        """
+        u and v are pixel coordinates.
+        The top left pixel is the origin, u axis increases to right, and v axis
+        increases down.
 
-    #     Returns a normal non-np 1x2 matrix of xy displacement vector from the
-    #     camera to the point on the ground plane.
-    #     Camera points along positive x axis and y axis increases to the left of
-    #     the camera.
+        Returns a normal non-np 1x2 matrix of xy displacement vector from the
+        camera to the point on the ground plane.
+        Camera points along positive x axis and y axis increases to the left of
+        the camera.
 
-    #     Units are in meters.
-    #     """
-    #     homogeneous_point = np.array([[u], [v], [1]])
-    #     xy = np.dot(self.h, homogeneous_point)
-    #     scaling_factor = 1.0 / xy[2, 0]
-    #     homogeneous_xy = xy * scaling_factor
-    #     x = homogeneous_xy[0, 0]
-    #     y = homogeneous_xy[1, 0]
-    #     return x, y
+        Units are in meters.
+        """
+        homogeneous_point = np.array([[u], [v], [1]])
+        xy = np.dot(self.h, homogeneous_point)
+        scaling_factor = 1.0 / xy[2, 0]
+        homogeneous_xy = xy * scaling_factor
+        x = homogeneous_xy[0, 0]
+        y = homogeneous_xy[1, 0]
+        return x, y
 
-    # def find_ref_point(self, cx, cy):
-    #     """
-    #     Compute a reference point at `look_ahead` distance in the direction of the cone.
-    #     If the cone is closer than that, the reference point is the cone itself.
-    #     """
-    #     la_dist = self.look_ahead
-    #     cone_pos = np.array([cx, cy])
-    #     dist = np.sqrt(cx**2 + cy**2)
-    #     if dist <= la_dist:
-    #         return cone_pos, dist
-    #     else:
-    #         return ((cone_pos / dist) * la_dist, dist)
+    def find_ref_point(self, cx, cy):
+        """
+        Compute a reference point at `look_ahead` distance in the direction of the cone.
+        If the cone is closer than that, the reference point is the cone itself.
+        """
+        la_dist = self.look_ahead
+        cone_pos = np.array([cx, cy])
+        dist = np.sqrt(cx**2 + cy**2)
+        if dist <= la_dist:
+            return cone_pos, dist
+        else:
+            return ((cone_pos / dist) * la_dist, dist)
 
-    # def calculate_steering_angle_pp(self, x, y):
-    #     x, y = self.transformUvToXy(x, y) # Convert pixel coordinates to real world coordinates
-    #     rx, ry = self.find_ref_point(x, y)
-    #     eta = np.arctan2(ry, rx)
-    #     L = self.wheelbase
-    #     L1 = self.look_ahead
-    #     steer_angle = np.arctan2(2*np.sin(eta)*L, L1)
-    #     return steer_angle if steer_angle <= self.max_steer_angle else self.max_steer_angle
+    def calculate_steering_angle_pp(self, x, y):
+        """
+        Calculate steering angle using Pure Pursuit controller.
+        
+        Args:
+            x: X-coordinate of the goal point in pixel coordinates
+            y: Y-coordinate of the goal point in pixel coordinates
+            
+        Returns:
+            steering_angle: Calculated steering angle using Pure Pursuit
+        """
+        try:
+            x, y = self.transformUvToXy(x, y)  # Convert pixel coordinates to real world coordinates
+            rx, ry = self.find_ref_point(x, y)
+            
+            # Make sure we're working with scalar values
+            if isinstance(rx, np.ndarray) and rx.size > 1:
+                rx = rx[0]  # Take first element if it's an array
+            if isinstance(ry, np.ndarray) and ry.size > 1:
+                ry = ry[0]  # Take first element if it's an array
+                
+            eta = np.arctan2(ry, rx)
+            L = self.wheelbase
+            L1 = self.look_ahead
+            steer_angle = np.arctan2(2*np.sin(eta)*L, L1)
+            
+            # Make sure we have a scalar value
+            if isinstance(steer_angle, np.ndarray):
+                steer_angle = steer_angle.item() if steer_angle.size == 1 else steer_angle[0]
+            
+            # Apply steering angle limits
+            if abs(steer_angle) <= self.max_steer_angle:
+                return (steer_angle - 0.26)
+            else:
+                return (self.max_steer_angle - 0.26) if steer_angle > 0 else -self.max_steer_angle
+        except Exception as e:
+            self.get_logger().error(f"Error in Pure Pursuit: {e}")
+            # Return a safe default steering angle
+            return 0.0
     
     def calculate_speed(self, steering_angle):
         """
@@ -474,7 +505,7 @@ class SimpleLaneFollower(Node):
                 car_position = (width // 2, height)
                 
                 # Define a fixed lookahead distance (adjust this value as needed)
-                lookahead_distance = 150  # pixels
+                lookahead_distance = self.lookahead_distance  # pixels
                 
                 # Calculate the direction vector from car to intersection
                 dir_x = x_intersect - car_position[0]
@@ -486,8 +517,12 @@ class SimpleLaneFollower(Node):
                     dir_x /= dir_length
                     dir_y /= dir_length
                 
-                # Calculate the goal point at the fixed distance in the direction of the intersection
-                goal_x = int(car_position[0] + dir_x * lookahead_distance)
+                # Apply a rightward bias to correct left-biased driving
+                # Add a rightward shift (positive x direction)
+                right_bias = 100  # pixels, adjust this value as needed
+                
+                # Calculate the goal point with rightward bias
+                goal_x = int(car_position[0] + dir_x * lookahead_distance + right_bias)
                 goal_y = int(car_position[1] + dir_y * lookahead_distance)
                 
                 # Ensure the goal point is within the image bounds
@@ -504,9 +539,13 @@ class SimpleLaneFollower(Node):
             
             # Calculate steering angle and speed if goal point is found
             if intersection_point is not None:
-                # Use the closer goal point for steering
-                steering_angle = self.calculate_steering_angle(goal_x, car_position[0], width)
+                # Use Pure Pursuit controller for steering
+                steering_angle = self.calculate_steering_angle_pp(x_intersect, y_intersect)
                 speed = self.calculate_speed(steering_angle)
+                
+                # Add debug info about Pure Pursuit
+                cv2.putText(debug_img, f"Pure Pursuit: {steering_angle:.2f} rad", 
+                            (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
                 
                 # Create and publish drive command
                 drive_cmd = AckermannDriveStamped()
@@ -528,13 +567,13 @@ class SimpleLaneFollower(Node):
                     drive_cmd = AckermannDriveStamped()
                     drive_cmd.header.stamp = self.get_clock().now().to_msg()
                     drive_cmd.drive.steering_angle = 0.1
-                    drive_cmd.drive.speed = 4.0
+                    drive_cmd.drive.speed = 3.0
                     self.drive_pub.publish(drive_cmd)
                 if right_line is None:
                     drive_cmd = AckermannDriveStamped()
                     drive_cmd.header.stamp = self.get_clock().now().to_msg()
                     drive_cmd.drive.steering_angle = -0.1
-                    drive_cmd.drive.speed = 4.0
+                    drive_cmd.drive.speed = 3.0
                     self.drive_pub.publish(drive_cmd)
             
             # Publish debug image
