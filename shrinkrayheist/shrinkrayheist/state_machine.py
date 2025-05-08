@@ -40,6 +40,9 @@ class StateMachine(Node):
         self.plan_state = True    # boolean which when true allows the state machine to send new start and goal pose to the planner
         self.current_pose = PoseWithCovarianceStamped() # This is constantly updated by the odom_sub callback and used as the starting point for path planning
 
+        # States for logging
+        self.person_log = False 
+
         self.get_logger().info("State Machine Initialized.")
 
     # helper functions for replanning
@@ -68,17 +71,20 @@ class StateMachine(Node):
     def banana_callback(self, msg: Bool):
         self.banana_detected = msg.data
         if self.banana_detected:
-            self.get_logger().info(f"Banana detected: {msg.data}")
+            # self.get_logger().info(f"Banana detected: {msg.data}")
+            pass
 
     def person_callback(self, msg: Bool): #not necessary if using safety controller
         self.person_detected = msg.data
         if msg.data:
-            self.get_logger().info(f"Person detected: {msg.data}")            
+            # self.get_logger().info(f"Person detected: {msg.data}")
+            pass            
 
     def traffic_light_callback(self, msg: Bool):
         self.red_light_detected = msg.data
         if msg.data:
-            self.get_logger().info(f"Red Light detected: {msg.data}")
+            # self.get_logger().info(f"Red Light detected: {msg.data}")
+            pass
 
     def goal_reached_cb(self, msg: Bool):
         self.goal_reached = msg.data
@@ -114,12 +120,17 @@ class StateMachine(Node):
 
         # 2) safety overrides (banana, person, red-light) still apply
         if self.banana_detected or self.person_detected or self.red_light_detected:
-           drive_msg = AckermannDriveStamped()
-           drive_msg.header.stamp = self.get_clock().now().to_msg()
-           drive_msg.drive.speed = 0.0
-           self.drive_pub.publish(drive_msg)
-           return
+            if self.person_detected and not self.person_log:
+                self.person_log = True
+                self.get_logger().info("Person detected. Stopping.")
+                
+            drive_msg = AckermannDriveStamped()
+            drive_msg.header.stamp = self.get_clock().now().to_msg()
+            drive_msg.drive.speed = 0.0
+            self.drive_pub.publish(drive_msg)
+            return
 
+        self.person_log = False
 
 def main(args=None):
     rclpy.init(args=args)
