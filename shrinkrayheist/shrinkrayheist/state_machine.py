@@ -130,6 +130,8 @@ class StateMachine(Node):
             self.drive_pub.publish(drive_msg)
             return
 
+        if self.person_log:
+            self.get_logger().info("Person no longer detected. Resuming.")
         self.person_log = False
 
 def main(args=None):
