@@ -77,11 +77,11 @@ def cd_color_segmentation(img):
 	lower_brightness, upper_brightness = 130, 255 
 	
 	#We need to dark reds (nonsaturaed) and bright reds (saturated) due to glare effect
-	lower_bound1 = np.array([0, 235, 150], dtype=np.uint8) 
+	lower_bound1 = np.array([0, 220, 150], dtype=np.uint8) 
 	upper_bound1 = np.array([15, 255, 250], dtype=np.uint8)
 	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
 
-	lower_bound2 = np.array([175, 235, 150], dtype=np.uint8)
+	lower_bound2 = np.array([175, 220, 150], dtype=np.uint8)
 	upper_bound2 = np.array([180, 255, 250], dtype=np.uint8)
 	mask2 = cv2.inRange(hsv_image, lower_bound2, upper_bound2)
 
