@@ -4,7 +4,7 @@
 
     <node pkg="shrinkrayheist" exec="person_detector" name="person_detector" output="screen"> </node>
 
-    <node pkg="shrinkrayheist" exec="banana_detector" name="banana_detector" output="screen"> </node>
+    <!-- <node pkg="shrinkrayheist" exec="banana_detector" name="banana_detector" output="screen"> </node> -->
 
     <node pkg="shrinkrayheist" exec="state_machine" name="state_machine" output="screen"> </node>
     <!-- Launch the path planning node -->

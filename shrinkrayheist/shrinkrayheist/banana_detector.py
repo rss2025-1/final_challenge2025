@@ -28,6 +28,8 @@ class BananaDetector(Node):
         self._phase1_timer = None
         self._phase2_timer = None
 
+        self.banana_count = 0
+
         self.get_logger().info("Banana Detector Initialized")
 
     def find_closest_banana(self, predictions):
@@ -67,8 +69,8 @@ class BananaDetector(Node):
         pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
         debug_image = np.array(pil_debug_image)
         debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
-
-        fname = datetime.now().strftime('/banana_img/banana_%Y%m%d_%H%M%S.png')
+        fname = datetime.now().strftime(f"./banana_img/banana_{self.banana_count}.png")
+        self.banana_count += 1
         cv2.imwrite(fname, debug_image)
         self.get_logger().info(f"Saved banana image to {fname}")
 

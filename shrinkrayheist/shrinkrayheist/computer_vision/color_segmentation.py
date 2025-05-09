@@ -91,9 +91,6 @@ def cd_color_segmentation(img):
 	# Create the mask
 	height = mask.shape[0]
 	mask[height // 2:, :] = 0  # Zero out lower half
-	cv2.imshow("HSV Mask", mask)
-	cv2.waitKey(0)  # Waits indefinitely until a key is pressed
-	cv2.destroyAllWindows()  # Closes all OpenCV windows
 	# Process contours
 	best_bounding_box = bounding_box
 	biggest_area = 0
@@ -102,12 +99,12 @@ def cd_color_segmentation(img):
 	for contour in contours:
 		area = cv2.contourArea(contour)
 		
-		if area > 30:
+		if area > 20:
 			x, y, w, h = cv2.boundingRect(contour)
 			aspect_ratio = w / h if h != 0 else 0
 
 			# Check if aspect ratio is close to 1 (square-like)
-			if 0.75 <= aspect_ratio <= 1.25:				
+			if 0.3 <= aspect_ratio <= 1.25:				
 				bounding_box = ((x, y), (x + w, y + h))
 				if w * h > biggest_area:
 					biggest_area = w * h
