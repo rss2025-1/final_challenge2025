@@ -91,11 +91,6 @@ def cd_color_segmentation(img):
 	# Create the mask
 	height = mask.shape[0]
 	mask[height // 2:, :] = 0  # Zero out lower half
-
-	# Erode the mask to remove noise
-	kernel = np.ones((5,5),np.uint8)
-	mask = cv2.erode(mask, kernel, iterations = 1)
-
 	# Process contours
 	best_bounding_box = bounding_box
 	biggest_area = 0
