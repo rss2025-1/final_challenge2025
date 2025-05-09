@@ -17,7 +17,7 @@ class UTurn(Node):
         # TODO: tune these parameters to real car turn in skinny hallway
         self.forward_speed = 1.0
         self.reverse_speed = -1.0
-        self.steering_angle = 0.4
+        self.steering_angle = 0.25
         self.turn_direction = 1 # 1 for right, -1 for left
 
         # timer for each segment of 3-point turn
