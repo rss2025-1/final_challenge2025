@@ -140,6 +140,9 @@ class StateMachine(Node):
                 self.red_light_log = True
                 self.get_logger().info("Red light detected. Stopping.")
                 self.stop()
+                start_time = time.time()
+                while time.time() - start_time < 1.0:
+                    self.stop()
 
         if self.person_log:
             self.get_logger().info("Person no longer detected. Resuming.")
