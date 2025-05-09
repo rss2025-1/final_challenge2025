@@ -7,6 +7,8 @@
     <node pkg="shrinkrayheist" exec="banana_detector" name="banana_detector" output="screen"> </node>
 
     <node pkg="shrinkrayheist" exec="state_machine" name="state_machine" output="screen"> </node>
+
+    <node pkg="shrinkrayheist" exec="u_turn" name="u_turn" output="screen"> </node>
     <!-- Launch the path planning node -->
     <node 
         pkg="localization" 

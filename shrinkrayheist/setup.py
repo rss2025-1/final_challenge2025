@@ -28,6 +28,7 @@ setup(
                              "person_detector = shrinkrayheist.person_detector:main",
                              "banana_detector = shrinkrayheist.banana_detector:main",
                              "autonomous_replanner = shrinkrayheist.autonomous_replanner:main",
+                             "u_turn = shrinkrayheist.u_turn:main",
         ],
     },
 )
