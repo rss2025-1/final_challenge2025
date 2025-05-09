@@ -52,7 +52,10 @@ class StateMachine(Node):
         pose = Pose()
         pose.position = msg.pose.pose.position
         pose.orientation = msg.pose.pose.orientation
-        self.stop_points.poses.append(pose)
+        if len(self.stop_points.poses) == 0:
+            self.stop_points.poses.append(pose)
+        else:
+            self.stop_points.poses[0] = pose
         self.get_logger().info(f"There are {len(self.stop_points.poses)} stop points.")
 
     def goal_cb(self, msg):
