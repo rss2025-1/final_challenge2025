@@ -130,20 +130,14 @@ class StateMachine(Node):
 
         # 2) safety overrides (banana, person, red-light) still apply
         if self.banana_detected or self.person_detected or self.red_light_detected:
-
+            self.stop()
             # Logging; This is implemented this way so that only one log is published. Feel free to ignore this.
             if self.person_detected and not self.person_log:
                 self.person_log = True
                 self.get_logger().info("Person detected. Stopping.")
-                self.stop()
             if self.red_light_detected and not self.red_light_log:
                 self.red_light_log = True
                 self.get_logger().info("Red light detected. Stopping.")
-                self.stop()
-                i = 0
-                while i < 500:
-                    self.stop()
-                    i += 1
             return
         
         if self.person_log:
