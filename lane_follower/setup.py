@@ -21,6 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'lane_follower = lane_follower.lane_follower:main',
-        ],
+            'racing_controller = lane_follower.racing_controller:main',
+            'yessir = lane_follower.yessir:main'
+            ],
     },
 )
