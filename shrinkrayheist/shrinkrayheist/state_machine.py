@@ -114,6 +114,11 @@ class StateMachine(Node):
             # Update the stop location going forward
             if self.current_stop_index < len(self.stop_points.poses) - 1:
                 self.current_stop_index += 1
+    def stop(self):
+        drive_msg = AckermannDriveStamped()
+        drive_msg.header.stamp = self.get_clock().now().to_msg()
+        drive_msg.drive.speed = 0.0
+        self.drive_pub.publish(drive_msg)
 
     def run_state_machine(self):
         # 1) motion controller
@@ -125,16 +130,12 @@ class StateMachine(Node):
             # Logging; This is implemented this way so that only one log is published. Feel free to ignore this.
             if self.person_detected and not self.person_log:
                 self.person_log = True
+                self.stop()
                 self.get_logger().info("Person detected. Stopping.")
             if self.red_light_detected and not self.red_light_log:
                 self.red_light_log = True
                 self.get_logger().info("Red light detected. Stopping.")
-            
-            drive_msg = AckermannDriveStamped()
-            drive_msg.header.stamp = self.get_clock().now().to_msg()
-            drive_msg.drive.speed = 0.0
-            self.drive_pub.publish(drive_msg)
-            return
+                self.stop()
 
         if self.person_log:
             self.get_logger().info("Person no longer detected. Resuming.")
