@@ -5,6 +5,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Pose, PoseStamped, PoseArray, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
+import time
 
 class StateMachine(Node):
     def __init__(self):
@@ -136,6 +137,7 @@ class StateMachine(Node):
                 self.red_light_log = True
                 self.get_logger().info("Red light detected. Stopping.")
                 self.stop()
+                time.sleep(1)
 
         if self.person_log:
             self.get_logger().info("Person no longer detected. Resuming.")
