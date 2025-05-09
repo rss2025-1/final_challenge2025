@@ -131,13 +131,12 @@ class StateMachine(Node):
             # Logging; This is implemented this way so that only one log is published. Feel free to ignore this.
             if self.person_detected and not self.person_log:
                 self.person_log = True
-                self.stop()
                 self.get_logger().info("Person detected. Stopping.")
+                self.stop()
             if self.red_light_detected and not self.red_light_log:
                 self.red_light_log = True
                 self.get_logger().info("Red light detected. Stopping.")
                 self.stop()
-                time.sleep(1)
 
         if self.person_log:
             self.get_logger().info("Person no longer detected. Resuming.")
@@ -154,4 +153,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
