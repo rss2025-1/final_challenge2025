@@ -19,7 +19,7 @@ class StateMachine(Node):
         # Subscribers 
         self.banana_sub = self.create_subscription(Bool, '/banana_detected', self.banana_callback, 10)
         self.person_sub = self.create_subscription(Bool, '/shoe_detected', self.person_callback, 10)
-        self.traffic_light_sub = self.create_subscription(Bool, '/red_light_detected', self.traffic_light_callback, 10)
+        self.traffic_light_sub = self.create_subscription(Bool, '/red_light_detected', self.traffic_light_callback, 20)
 
         # Path Planning Subscribers
         self.pose_sub = self.create_subscription(PoseWithCovarianceStamped, "/initialpose", self.pose_cb, 10)
@@ -140,10 +140,12 @@ class StateMachine(Node):
                 self.red_light_log = True
                 self.get_logger().info("Red light detected. Stopping.")
                 self.stop()
-                start_time = time.time()
-                while time.time() - start_time < 2.0:
+                i = 0
+                while i < 500:
                     self.stop()
-
+                    i += 1
+            return
+        
         if self.person_log:
             self.get_logger().info("Person no longer detected. Resuming.")
             self.person_log = False
