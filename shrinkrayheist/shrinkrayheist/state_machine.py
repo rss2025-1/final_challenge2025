@@ -14,11 +14,14 @@ class StateMachine(Node):
         self.banana_detected = False
         self.person_detected = False
         self.red_light_detected = False
+        self.turn_in_progress = False
+        self.turn_completed = False
         
         # Subscribers 
         self.banana_sub = self.create_subscription(Bool, '/banana_detected', self.banana_callback, 10)
         self.person_sub = self.create_subscription(Bool, '/shoe_detected', self.person_callback, 10)
         self.traffic_light_sub = self.create_subscription(Bool, '/red_light_detected', self.traffic_light_callback, 10)
+        self.uturn_sub = self.create_subscription(Bool, '/turn_completed', self.u_turn_done_cb, 10)
 
         # Path Planning Subscribers
         self.pose_sub = self.create_subscription(PoseWithCovarianceStamped, "/initialpose", self.pose_cb, 10)
@@ -30,6 +33,7 @@ class StateMachine(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
         self.goal_pub = self.create_publisher(PoseStamped, '/current_goal_pose', 10)
         self.start_pub = self.create_publisher(PoseWithCovarianceStamped, '/current_start_pose', 10)
+        self.u_turn_trigger_pub = self.create_publisher(Bool, '/u_turn_trigger', 10)
 
         self.timer = self.create_timer(0.1, self.run_state_machine)  #Timer to keep checking / acting
 
@@ -86,6 +90,17 @@ class StateMachine(Node):
         if msg.data:
             # self.get_logger().info(f"Red Light detected: {msg.data}")
             pass
+    
+    def u_turn_done_callback(self, msg: Bool):
+        if msg.data:
+            self.get_logger().info("U-turn completed.")
+            self.turn_completed = True
+            self.turn_in_progress = False
+
+            # turning safety controller back on
+            safety_msg = Bool()
+            safety_msg.data = True
+            self.safety_toggle_pub.publish(safety_msg)
 
     def goal_reached_cb(self, msg: Bool):
         self.goal_reached = msg.data
@@ -100,10 +115,28 @@ class StateMachine(Node):
         if self.plan_state and (len(self.stop_points.poses) == 7):
             self.plan_state = False
             self.get_logger().info("Planning Path...")
+            
             # Making a U-turn
-            if self.current_stop_index == 4:
+            if self.current_stop_index == 4 and not self.turn_in_progress:
                 self.get_logger().info("Making a U-turn...")
-                # U-turn function
+
+                # turning off safety controller
+                safety_msg = Bool()
+                safety_msg.data = False
+                self.safety_toggle_pub.publish(safety_msg)
+
+                trigger_msg = Bool()
+                trigger_msg.data = True
+                self.u_turn_trigger_pub.publish(trigger_msg)
+
+                self.turn_in_progress = True
+                self.turn_completed = False
+                return
+            
+            if self.turn_completed:
+                self.turn_completed = False
+                self.plan_state = True
+                self.current_stop_index += 1
 
             # This publishes the start and goal pose to the planner, which automatically follows the path as well
             self.start_pub.publish(self.current_pose)
