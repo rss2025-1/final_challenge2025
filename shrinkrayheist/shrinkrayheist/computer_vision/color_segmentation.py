@@ -73,33 +73,33 @@ def cd_color_segmentation(img):
 	bounding_box = ((0,0),(0,0))
 	hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-	# Tuned HSV ranges for red
-	lower_red1 = np.array([0, 45, 100])
-	upper_red1 = np.array([10, 255, 255])
-	lower_red2 = np.array([160, 45, 100])
-	upper_red2 = np.array([180, 255, 255])
+	lower_hue, upper_hue = 0,20  
+	lower_brightness, upper_brightness = 130, 255 
+	
+	#We need to dark reds (nonsaturaed) and bright reds (saturated) due to glare effect
+	lower_bound1 = np.array([0, 235, 150], dtype=np.uint8) 
+	upper_bound1 = np.array([10, 255, 250], dtype=np.uint8)
+	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
 
-	# Masks for red
-	mask = cv2.bitwise_or(
-	    cv2.inRange(hsv_image, lower_red1, upper_red1),
-	    cv2.inRange(hsv_image, lower_red2, upper_red2)
-	)
+	lower_bound2 = np.array([175, 235, 150], dtype=np.uint8)
+	upper_bound2 = np.array([180, 255, 250], dtype=np.uint8)
+	mask2 = cv2.inRange(hsv_image, lower_bound2, upper_bound2)
 
-	kernel = np.ones((5, 5), np.uint8)
-	red_mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+# Combine both masks
+	mask = cv2.bitwise_or(mask1, mask2)
 
 	# Create the mask
-	height = red_mask.shape[0]
-	red_mask[height // 2:, :] = 0  # Zero out lower half
+	height = mask.shape[0]
+	mask[height // 2:, :] = 0  # Zero out lower half
 	# Process contours
 	best_bounding_box = bounding_box
 	biggest_area = 0
-	contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
 	for contour in contours:
 		area = cv2.contourArea(contour)
 		
-		if area > 20 :
+		if area > 20:
 			x, y, w, h = cv2.boundingRect(contour)
 			aspect_ratio = w / h if h != 0 else 0
 
