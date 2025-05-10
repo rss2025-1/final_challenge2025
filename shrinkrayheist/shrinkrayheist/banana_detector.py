@@ -7,8 +7,9 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 from .model.detector import Detector #this is YOLO
-from datetime import datetime
 import os
+from ackermann_msgs.msg import AckermannDriveStamped
+import time
 
 class BananaDetector(Node):
     def __init__(self):
@@ -25,12 +26,14 @@ class BananaDetector(Node):
 
         # State flags
         self._detection_enabled = True
-        self._detection_pause_time = 10.0
+        self._detection_pause_time = 40.0
         self._phase1_timer = None
         self._phase2_timer = None
         self.screenshot_enabled = True
 
         self.banana_count = 0
+
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
 
         self.get_logger().info("Banana Detector Initialized")
 
@@ -143,12 +146,21 @@ class BananaDetector(Node):
             self._phase1_timer.cancel()
             self._phase1_timer = None
 
-        # Schedule Phase 2 timer: after 10 s of pause, resume detection
+        # Schedule Phase 2 timer: after 40 s of pause, resume detection
         if self._phase2_timer is None:
             self._phase2_timer = self.create_timer(
                 self._detection_pause_time,
                 self._resume_detection
             )
+        
+        # Reverse the car at .5 m/s for 2 seconds
+        start = time.time()
+        while time.time() - start < 2.0:
+            drive_msg = AckermannDriveStamped()
+            drive_msg.header.stamp = self.get_clock().now().to_msg()
+            drive_msg.drive.speed = -0.5
+            self.drive_pub.publish(drive_msg)
+
 
     def _resume_detection(self):
         # Re-enable detection
