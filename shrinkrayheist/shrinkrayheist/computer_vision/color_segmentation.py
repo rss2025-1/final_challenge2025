@@ -85,13 +85,16 @@ def cd_color_segmentation(img):
 	    cv2.inRange(hsv_image, lower_red2, upper_red2)
 	)
 
+	kernel = np.ones((5, 5), np.uint8)
+	red_mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
 	# Create the mask
-	height = mask.shape[0]
-	mask[height // 2:, :] = 0  # Zero out lower half
+	height = red_mask.shape[0]
+	# red_mask[height // 2:, :] = 0  # Zero out lower half
 	# Process contours
 	best_bounding_box = bounding_box
 	biggest_area = 0
-	contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
 	for contour in contours:
 		area = cv2.contourArea(contour)

@@ -34,6 +34,7 @@ class BananaDetector(Node):
         self.banana_count = 0
 
         self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
+        self.goal_reached_pub = self.create_publisher(Bool, "/goal_reached", 10)
 
         self.get_logger().info("Banana Detector Initialized")
 
@@ -122,6 +123,7 @@ class BananaDetector(Node):
         # Stop when the banana is found
         if banana_detected and self._detection_enabled:
             self.get_logger().info(f"Banana! stopping car and pausing detection.")
+            self.goal_reached_pub.publish(Bool(data=bool(True)))
             if self.screenshot_enabled:
                 self.screenshot_banana(debug_image, predictions)
                 self.screenshot_enabled = False
@@ -155,7 +157,7 @@ class BananaDetector(Node):
                 self._resume_detection
             )
         
-        # Reverse the car at .5 m/s for 2 seconds
+        # Reverse the car at 1.0 m/s for 5 seconds
         start = time.time()
         while time.time() - start < 5.0:
             drive_msg = AckermannDriveStamped()

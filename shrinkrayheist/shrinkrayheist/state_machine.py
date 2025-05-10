@@ -44,6 +44,7 @@ class StateMachine(Node):
         # States for logging
         self.person_log = False 
         self.red_light_log = False
+        self.red_light_count = 0
 
         self.get_logger().info("State Machine Initialized.")
 
