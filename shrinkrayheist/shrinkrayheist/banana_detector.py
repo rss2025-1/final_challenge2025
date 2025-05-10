@@ -159,7 +159,7 @@ class BananaDetector(Node):
         
         # Reverse the car at 1.0 m/s for 5 seconds
         start = time.time()
-        while time.time() - start < 5.0:
+        while time.time() - start < 3.0:
             drive_msg = AckermannDriveStamped()
             drive_msg.header.stamp = self.get_clock().now().to_msg()
             drive_msg.drive.speed = -1.0
