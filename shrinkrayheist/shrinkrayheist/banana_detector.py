@@ -111,7 +111,8 @@ class BananaDetector(Node):
 
         # Publish the banana detection state
         banana_msg = Bool(data = banana_detected)
-        self.banana_state_pub.publish(banana_msg)
+        if largest_banana_size_detected > 2000.0:
+            self.banana_state_pub.publish(banana_msg)
 
         if banana_detected and closest_banana is not None:
             self.get_logger().info(f"Closest banana detected at: {closest_banana}")
