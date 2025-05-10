@@ -90,7 +90,7 @@ def cd_color_segmentation(img):
 
 	# Create the mask
 	height = red_mask.shape[0]
-	# red_mask[height // 2:, :] = 0  # Zero out lower half
+	red_mask[height // 2:, :] = 0  # Zero out lower half
 	# Process contours
 	best_bounding_box = bounding_box
 	biggest_area = 0
@@ -99,7 +99,7 @@ def cd_color_segmentation(img):
 	for contour in contours:
 		area = cv2.contourArea(contour)
 		
-		if area > 20:
+		if area > 20 :
 			x, y, w, h = cv2.boundingRect(contour)
 			aspect_ratio = w / h if h != 0 else 0
 
