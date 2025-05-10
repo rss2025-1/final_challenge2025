@@ -31,6 +31,7 @@ class StateMachine(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/low_level/input/safety", 10)
         self.goal_pub = self.create_publisher(PoseStamped, '/current_goal_pose', 10)
         self.start_pub = self.create_publisher(PoseWithCovarianceStamped, '/current_start_pose', 10)
+        self.goal_reached_pub = self.create_publisher(Bool, "/goal_reached", 10)
 
         self.timer = self.create_timer(0.1, self.run_state_machine)  #Timer to keep checking / acting
 
@@ -132,13 +133,11 @@ class StateMachine(Node):
         # 2) safety overrides (banana, person, red-light) still apply
         if self.banana_detected or self.person_detected or self.red_light_detected:
             if self.red_light_detected:
-                if self.red_light_count < 1:
-                    self.red_light_count += 1
-                    start_time = time.time()
-                    while time.time() - start_time < 2.0:
-                        self.stop()
-                else:
-                    pass
+                self.red_light_count += 1
+                self.goal_reached_pub.publish(Bool(data=bool(True)))
+                start_time = time.time()
+                while time.time() - start_time < 2.0:
+                    self.stop()
                 return
             self.stop()
             # Logging; This is implemented this way so that only one log is published. Feel free to ignore this.
