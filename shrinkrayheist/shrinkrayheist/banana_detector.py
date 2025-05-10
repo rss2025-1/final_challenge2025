@@ -28,6 +28,7 @@ class BananaDetector(Node):
         self._detection_pause_time = 10.0
         self._phase1_timer = None
         self._phase2_timer = None
+        self.screenshot_enabled = True
 
         self.banana_count = 0
 
@@ -116,7 +117,9 @@ class BananaDetector(Node):
         # Stop when the banana is found
         if banana_detected and self._detection_enabled:
             self.get_logger().info(f"Banana! stopping car and pausing detection.")
-            self.screenshot_banana(debug_image, predictions)
+            if self.screenshot_enabled:
+                self.screenshot_banana(debug_image, predictions)
+                self.screenshot_enabled = False
             self._trigger_stop_and_pause()
 
         # Publish debug image (with boxes)
@@ -150,6 +153,7 @@ class BananaDetector(Node):
     def _resume_detection(self):
         # Re-enable detection
         self._detection_enabled = True
+        self.screenshot_enabled = True
 
         # Cancel Phase 2 timer
         if self._phase2_timer:
