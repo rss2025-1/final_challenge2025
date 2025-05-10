@@ -134,7 +134,8 @@ class StateMachine(Node):
         if self.banana_detected or self.person_detected or self.red_light_detected:
             if self.red_light_detected:
                 self.red_light_count += 1
-                self.goal_reached_pub.publish(Bool(data=bool(True)))
+                if self.red_light_count < 1:
+                    self.goal_reached_pub.publish(Bool(data=bool(True)))
                 start_time = time.time()
                 while time.time() - start_time < 2.0:
                     self.stop()
