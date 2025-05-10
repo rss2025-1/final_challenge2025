@@ -63,9 +63,9 @@ class StateMachine(Node):
         self.stop_points.poses.append(msg.pose)
         self.get_logger().info(f"There are {len(self.stop_points.poses)} stop points.")
         # Add in the reverse path
-        if len(self.stop_points.poses) == 4:
+        if len(self.stop_points.poses) == 5:
+            self.stop_points.poses.append(self.stop_points.poses[3])
             self.stop_points.poses.append(self.stop_points.poses[2])
-            self.stop_points.poses.append(self.stop_points.poses[1])
             self.stop_points.poses.append(self.stop_points.poses[0])
             self.get_logger().info("Adding reverse path.")
             self.get_logger().info(f"There are {len(self.stop_points.poses)} stop points.")
@@ -102,7 +102,7 @@ class StateMachine(Node):
 
     def motion_controller(self):
         # If we can plan and we have 4 stop points (start, banana 1, banana 2, end), proceed
-        if self.plan_state and (len(self.stop_points.poses) == 7):
+        if self.plan_state and (len(self.stop_points.poses) == 8):
             self.plan_state = False
             self.get_logger().info("Planning Path...")
             # Making a U-turn
