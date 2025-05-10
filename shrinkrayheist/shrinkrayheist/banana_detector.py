@@ -8,6 +8,7 @@ from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 from .model.detector import Detector #this is YOLO
 from datetime import datetime
+import os
 
 class BananaDetector(Node):
     def __init__(self):
@@ -69,10 +70,15 @@ class BananaDetector(Node):
         pil_debug_image = self.detector.draw_box(debug_image, predictions, draw_all=True)
         debug_image = np.array(pil_debug_image)
         debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
-        fname = datetime.now().strftime(f"./banana_img/banana_{self.banana_count}.png")
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        save_dir = os.path.join(script_dir, "banana_img")
+        fname = os.path.join(save_dir, f"banana_{self.banana_count}.png")
         self.banana_count += 1
-        cv2.imwrite(fname, debug_image)
-        self.get_logger().info(f"Saved banana image to {fname}")
+        success = cv2.imwrite(fname, debug_image)
+        if success:
+            self.get_logger().info(f"Saved banana image to {fname}")
+        else:
+            self.get_logger().error(f"Failed to save banana image to {fname}")
 
     def image_callback(self, image_msg):
         """
