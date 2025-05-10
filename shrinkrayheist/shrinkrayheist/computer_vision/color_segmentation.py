@@ -73,20 +73,17 @@ def cd_color_segmentation(img):
 	bounding_box = ((0,0),(0,0))
 	hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-	lower_hue, upper_hue = 0,20  
-	lower_brightness, upper_brightness = 130, 255 
-	
-	#We need to dark reds (nonsaturaed) and bright reds (saturated) due to glare effect
-	lower_bound1 = np.array([0, 220, 150], dtype=np.uint8) 
-	upper_bound1 = np.array([15, 255, 250], dtype=np.uint8)
-	mask1 = cv2.inRange(hsv_image, lower_bound1, upper_bound1)
+	# Tuned HSV ranges for red
+	lower_red1 = np.array([0, 45, 100])
+	upper_red1 = np.array([10, 255, 255])
+	lower_red2 = np.array([160, 45, 100])
+	upper_red2 = np.array([180, 255, 255])
 
-	lower_bound2 = np.array([175, 220, 150], dtype=np.uint8)
-	upper_bound2 = np.array([180, 255, 250], dtype=np.uint8)
-	mask2 = cv2.inRange(hsv_image, lower_bound2, upper_bound2)
-
-# Combine both masks
-	mask = cv2.bitwise_or(mask1, mask2)
+	# Masks for red
+	mask = cv2.bitwise_or(
+	    cv2.inRange(hsv_image, lower_red1, upper_red1),
+	    cv2.inRange(hsv_image, lower_red2, upper_red2)
+	)
 
 	# Create the mask
 	height = mask.shape[0]
