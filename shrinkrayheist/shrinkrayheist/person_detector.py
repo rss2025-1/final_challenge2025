@@ -20,7 +20,7 @@ class PersonDetector(Node):
             self.ang_bounds = -np.pi/2, np.pi/2
             self.lidar_dist = 0.05
             self.car_width = 0.2
-            self.estop_dist = 1.0
+            self.estop_dist = 0.5
             self.count_threshold = 12 #6
             callback = self.simple_estop_cb if self.simple_estop_cb else self.complex_estop_cb
             self.prev_valid_count = 0
